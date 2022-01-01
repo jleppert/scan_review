@@ -1,0 +1,65 @@
+<html>
+  <head>
+    <title>Scan Review</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+  </head>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    main > .container {
+      padding: 60px 15px 0;
+    }
+    
+    .bd-placeholder-img {
+      font-size: 1.125rem;
+      text-anchor: middle;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      user-select: none;
+    }
+
+     @media (min-width: 768px) {
+      .bd-placeholder-img-lg {
+        font-size: 3.5rem;
+      }
+     }
+  </style>
+  
+  <body class="d-flex flex-column h-100">
+    
+    <header>
+      <!-- Fixed navbar -->
+      <nav class="navbar navbar-expand-md navbar-dark fixed-top bg-dark">
+        <div class="container-fluid">
+          <a class="navbar-brand" href="#">Scan Review</a>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+          </button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="flex-shrink-0">
+      <div class="container"></div>
+    </main>
+
+    <footer class="footer mt-auto py-3 bg-light">
+      <div class="container">
+        <span class="text-muted"></span>
+      </div>
+    </footer>
+
+    <script type="text/html" id="plot">
+      <div class="row">
+        <div class="col"></div>
+        <div class="col-7 plot-container"></div>
+        <div class="col"></div>
+      </div>
+    </script>
+    
+    <script src="/vendor.js"></script>
+    <script src="/client.js"></script>
+
+  </body>
+</html>

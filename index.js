@@ -8,6 +8,7 @@ var fs            = require('fs'),
     dnode         = require('dnode'),
     shoe          = require('shoe'),
     redis         = require('redis'),
+    msgpack       = require('msgpackr'),
     EventEmitter  = require('events'),
     browserify    = require('browserify-middleware');
 
@@ -61,8 +62,17 @@ var server = http.createServer(app);
 var redisClient = redis.createClient();
 redisClient.on('error', (err) => console.log('Redis Client Error', err));
 
-var remotes = {};
+var remotes = {},
+    messageStructs = [];
 
+var unpacker = new msgpack.Unpackr({
+  structures: messageStructs
+}), packer = new msgpack.Packr({
+  structures: messageStructs
+});
+
+var unpack = unpacker.unpack,
+    pack   = packer.pack;
 
 var trackerConfigPath = path.join(require('os').homedir(), '.config', 'libsurvive', 'config.json'); 
 var sock = shoe(function(stream) {
@@ -79,10 +89,13 @@ var sock = shoe(function(stream) {
 
       var config = {
         obj: JSON.parse((await redisClient.get('rover_pose_config')).toString()),
-        basePoses: (await redisClient.lRange('rover_base_pose', -2, -1)).map(pose => JSON.parse(pose.toString()))
+        basePoses: await (async function() {
+          return ((await redisClient.keys('rover_base_pose-*')) || []).map(key => async function() {
+            return (await redisClient.getBuffer(key));
+          });
+        })()
       };
 
-      
       cb(config);
       //cb(JSON.parse(fs.readFileSync(trackerConfigPath).toString() ));
     },
@@ -92,7 +105,7 @@ var sock = shoe(function(stream) {
 
       if(id) clearInterval(id);
       id = setInterval(async () => {
-        cb(key, JSON.parse((await redisClient.get(key)).toString()));
+        cb(key, unpack((await redisClient.getBuffer(key))));
       }, rateInMs);
 
       remote.timers[`${key}_${rateInMs}`] = id;

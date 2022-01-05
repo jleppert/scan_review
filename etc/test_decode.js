@@ -21,20 +21,25 @@ var wheelSpeedMessage = {
   ]
 };
 
+var hrTime = process.hrtime();
+var t = hrTime[0] * 1000000 + hrTime[1] / 1000;
+
 //console.log(wheelSpeedMessage);
 
 
 (async () => {
 
   var client = redis.createClient();
-
   await client.connect();
-  
+
+  var current = parseInt(await client.get("rover_startup_timestamp"));
+ 
+ /* 
   var data = await client.getBuffer(Buffer.from("rover_base_pose-LH1-LHB-6B84C4CA"));
   
   var s = unpacker.unpack(data);
 
-  console.log(data, s);
+  console.log(data, s);*/
 
    
   //var data = await client.getBuffer(Buffer.from("rover_wheel_velocity"));
@@ -45,15 +50,17 @@ var wheelSpeedMessage = {
   //console.log(data, s, n);
 
   //console.log(structs);
+  var microtime = require('microtime');
 
-  /*var x = new Map();
-  x.set('timestamp', 510862028);
+  var x = new Map();
+  x.set('timestamp', microtime.now() - current);
+
+
  
-  x.set('velocity', [0, 0, 0, 0]);
+  x.set('velocity', [0, 30, 0, 0]);
 
   console.log(x, packer.pack(x));
-
-  await client.set(Buffer.from('rover_wheel_velocity'), packer.pack(x));
+  await client.set(Buffer.from('rover_wheel_velocity_command'), packer.pack(x));
   /*
   setInterval(async function() {
     var data = await client.getBuffer(Buffer.from("rover_wheel_encoder"));

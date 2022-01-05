@@ -16,6 +16,7 @@
     "colorbrewer": "^1.5.1",
     "dnode": "git+ssh://git@github.com/Inspectobot/dnode.git",
     "express": "^4.17.2",
+    "microtime": "^3.0.0",
     "msgpack": "^1.0.3",
     "msgpackr": "^1.5.2",
     "nprogress": "^0.2.0",

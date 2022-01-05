@@ -77,12 +77,19 @@ connectionManager.on('reconnect', () => {
 });
 
 
+const toPascal = (s) => {
+  var str = s.toLowerCase().replace(/[^a-zA-Z0-9]+(.)/g, (m, chr) => chr.toUpperCase());
+  return str.charAt(0).toUpperCase() + str.slice(1);
+};
+
+
 var currentTrackerConfig;
 function initUI() {
   console.log('init ui');
 
   var positionPlot, positionSource, xRange, yRange, xAxis, yAxis, xGrid, yGrid;
-
+  
+  var tools = ['pan', 'crosshair', 'wheel_zoom', 'box_zoom', 'reset', 'save'];
   remote.getBaseStationConfig(config => {
     
     currentTrackerConfig = config;
@@ -98,21 +105,28 @@ function initUI() {
       y_range: yRange,
       width: 400,
       height: 400,
-      background_fill_color: '#F2F2F7',
+      background_fill_color: '#F2F2F7'
+    });
+
+    tools.forEach(t => {
+      var tool = new Bokeh[`${toPascal(t)}Tool`]();
+      positionPlot.add_tools(tool);
     });
 
     var xPositionPlot = new Bokeh.Plotting.figure({
       title: 'X Axis Position',
       width: 400,
       height: 400,
-      background_fill_color: '#F2F2F7'
+      background_fill_color: '#F2F2F7',
+      tools: tools
     });
 
     var yPositionPlot = new Bokeh.Plotting.figure({
       title: 'Y Axis Position',
       width: 400,
       height: 400,
-      background_fill_color: '#F2F2F7'
+      background_fill_color: '#F2F2F7',
+      tools: tools
     });
 
     xAxis = new Bokeh.LinearAxis({ axis_line_color: null });
@@ -185,16 +199,18 @@ function initUI() {
       title: 'Battery State',
       width: 400,
       height: 400,
-      background_fill_color: '#F2F2F7'
+      background_fill_color: '#F2F2F7',
+      tools: tools
     });
 
     var wheelEncodersPlot = new Bokeh.Plotting.figure({
       title: 'Wheel Encoders',
       width: 400,
       height: 400,
-      background_fill_color: '#F2F2F7'
+      background_fill_color: '#F2F2F7',
+      tools: tools
     });
-    
+
     var batterySource = new Bokeh.ColumnDataSource({
       data: { 
         timestamp: [], 
@@ -203,7 +219,7 @@ function initUI() {
         percent: [], 
         temperature: [] }
     });
-    
+
     var batteryFields;
 
     var yRangeMapping = {
@@ -252,17 +268,14 @@ function initUI() {
         });
 
         batterySource.change.emit();
-
       }
-
-      //console.log(batteryMessage);
     });
 
     var wheelEncoderFields;
 
     var wheelEncodersYRangeMapping = {
       rpm: new Bokeh.Range1d({ start: -200, end: 200 }),
-      enc: new Bokeh.Range1d({ start: 0, end: 25000 }),
+      enc: new Bokeh.Range1d({ start: 0, end: 45000 }),
     };
 
     wheelEncodersPlot.extra_y_ranges = wheelEncodersYRangeMapping; 
@@ -284,7 +297,6 @@ function initUI() {
 
         wheelEncodersSource = new Bokeh.ColumnDataSource({ data: data });
 
-
         wheelEncoderFields = Object.keys(wheelEncoderMessage).map((bKey, i) => {
           if(bKey === 'timestamp') return;
           
@@ -302,7 +314,6 @@ function initUI() {
                 legend_label: `${legendLabel}_${i}`,
                 y_range_name: yRangeName
               });
-              debugger;
             }
           }
 
@@ -326,13 +337,131 @@ function initUI() {
         wheelEncodersSource.change.emit();
 
       }
-
-      //console.log(batteryMessage);
-
-
-
-      console.log(wheelEncoderMessage);
     });
+    
+    var wheelVelocityCommandFields, wheelVelocityOutputFields;;
+
+    var wheelVelocityYRangeMapping = {
+      velocity: new Bokeh.Range1d({ start: -200, end: 200 }),
+    };
+
+    var wheelVelocityPlot = new Bokeh.Plotting.figure({
+      title: 'Wheel Velocity Commands & Outputs',
+      width: 400,
+      background_fill_color: '#F2F2F7',
+      y_range: wheelVelocityYRangeMapping.velocity,
+      tools: tools
+    });
+
+    var wheelVelocityScheme = colorBrewer.Spectral[4];
+    var wheelVelocityLegendMapping = {}; 
+
+    var wheelVelocityOutputSource;
+    remote.on('rover_wheel_velocity_output', 100, (key, wheelVelocityMessage) => {
+      //console.log(wheelVelocityMessage.timestamp);
+      if(!wheelVelocityOutputFields) {
+        var outputData = { timestamp: [] };
+
+        for(var i = 0; i < 4; i++) {
+          outputData[`velocity_${i}`] = [];
+        }
+
+        wheelVelocityOutputSource = new Bokeh.ColumnDataSource({ data: outputData });
+
+        wheelVelocityOutputFields = Object.keys(wheelVelocityMessage).map((bKey, i) => {
+          if(bKey === 'timestamp') return;
+          
+          if(bKey === 'velocity') {
+            
+            for(var i = 0; i < 4; i++) {
+              wheelVelocityPlot.line({ field: 'timestamp' }, { field: `${bKey}_${i}` }, {
+                source: wheelVelocityOutputSource,
+                line_color: wheelVelocityScheme[i],
+                line_width: 2,
+                legend_label: `${bKey}_output_${i}`,
+              });
+            }
+          }
+        });
+
+        wheelVelocityPlot.change.emit();
+        window.addPlot = addPlot;
+        window.wheelVelocityPlot = wheelVelocityPlot;
+        addPlot(wheelVelocityPlot);
+      } else {
+        Object.keys(wheelVelocityMessage).forEach(k => {
+          if(k === 'timestamp') return wheelVelocityOutputSource.data.timestamp.push(wheelVelocityMessage.timestamp);
+          
+          if(k === 'velocity') {
+            for(var i = 0; i < 4; i++) {
+              wheelVelocityOutputSource.data[`${k}_${i}`].push(wheelVelocityMessage[k][i]);
+            }
+          }
+        });
+
+        wheelVelocityOutputSource.change.emit();
+      }
+    });
+
+    var wheelVelocityCommandSource;
+
+    var lastWheelVelocityCommand;
+    
+    remote.on('rover_wheel_velocity_command', 100, (key, wheelVelocityMessage) => {
+      if(!wheelVelocityCommandFields) {
+        var outputData = { timestamp: [] };
+
+        for(var i = 0; i < 4; i++) {
+          outputData[`velocity_${i}`] = [];
+        }
+
+        wheelVelocityCommandSource = new Bokeh.ColumnDataSource({ data: outputData });
+
+        wheelVelocityCommandFields = Object.keys(wheelVelocityMessage).map((bKey, i) => {
+          if(bKey === 'timestamp') return;
+          
+          if(bKey === 'velocity') {
+            
+            for(var i = 0; i < 4; i++) {
+                wheelVelocityPlot.circle({ field: 'timestamp' }, { field: `${bKey}_${i}` }, {
+                source: wheelVelocityCommandSource,
+                fill_color: wheelVelocityScheme[i],
+                line_color: wheelVelocityScheme[i],
+                fill_alpha: 0.8,
+                legend_label: `${bKey}_command_${i}`,
+              });
+            }
+          }
+        });
+
+        wheelVelocityPlot.change.emit();
+
+      }
+
+      if(!lastWheelVelocityCommand) {
+        lastWheelVelocityCommand = wheelVelocityMessage;
+      } else {
+        if(lastWheelVelocityCommand.timestamp === wheelVelocityMessage.timestamp) return;
+      }
+
+      lastWheelVelocityCommand = wheelVelocityMessage;
+
+      Object.keys(wheelVelocityMessage).forEach(k => {
+        if(k === 'timestamp') return wheelVelocityCommandSource.data.timestamp.push(wheelVelocityMessage.timestamp);
+        
+        if(k === 'velocity') {
+          for(var i = 0; i < 4; i++) {
+            wheelVelocityCommandSource.data[`${k}_${i}`].push(wheelVelocityMessage[k][i]);
+          }
+        }
+      });
+
+      wheelVelocityCommandSource.change.emit();
+    
+    });
+
+
+
   });
 }
 

@@ -6,6 +6,7 @@ var fs            = require('fs'),
     http          = require('http'),
     path          = require('path'),
     dnode         = require('dnode'),
+    uuid          = require('uuid').v4,
     shoe          = require('shoe'),
     redis         = require('redis'),
     msgpack       = require('msgpackr'),
@@ -75,16 +76,13 @@ var unpack = unpacker.unpack,
     pack   = packer.pack;
 
 var trackerConfigPath = path.join(require('os').homedir(), '.config', 'libsurvive', 'config.json'); 
+
+var logs = {};
+
 var sock = shoe(function(stream) {
   var remote;
 
-  var d = dnode({
-    ping: function() {
-      var r = remotes[remote.id];
-      if(r) r.lastPing = Date.now(); 
-    },
-
-    getBaseStationConfig: async function(cb = function() {}) {
+  async function getBaseStationConfig(cb = function() {}) {
       //console.log(fs.readFileSync(trackerConfigPath).toString());
 
       var config = {
@@ -98,7 +96,15 @@ var sock = shoe(function(stream) {
 
       cb(config);
       //cb(JSON.parse(fs.readFileSync(trackerConfigPath).toString() ));
+  }
+
+  var d = dnode({
+    ping: function() {
+      var r = remotes[remote.id];
+      if(r) r.lastPing = Date.now(); 
     },
+
+    getBaseStationConfig: getBaseStationConfig,
 
     on: function(key, rateInMs = 100, cb = function() {}) {
       var id = remote.timers[`${key}_${rateInMs}`];
@@ -117,6 +123,122 @@ var sock = shoe(function(stream) {
       if(id) clearInterval(id);
 
       delete remote.timers[`${key}_${rateInMs}`];
+    },
+
+    startLogging: async function(cb = function() {}) {
+      var logIndex = {
+        started_at: new Date().getTime(),
+        rover_startup_timestamp: parseInt((await redisClient.get('rover_startup_timestamp'))),
+        keys: {},
+        id: uuid.v4() 
+      };
+
+      await (getBaseStationConfig(config => {
+        logIndex.baseStationConfig = config;
+      }));
+
+      var keysToLog = 
+        [
+          ['rover_pose', 100],
+          ['rover_battery_state', 1], 
+          ['rover_wheel_encoder', 100],
+          ['rover_wheel_velocity_command', 100, true],
+          ['rover_wheel_velocity_output', 100]
+      ];
+
+      logIndex.keysToLog = keysToLog;
+
+      keysToLog.forEach(keyDesc => {
+        var key       = keyDesc[0],
+            rateInMs  = keyDesc[1],
+            deDupe    = keyDesc[2] || false;
+
+        logIndex.running = true;
+
+        logIndex.keys[key] = {
+          intervalId: 0,
+          queue: [],
+          count: 0,
+          writer: fs.createWriteStream(path.join(__dirname, 'data', `${logIndex.started_at}-${key}.msgpack`));
+        };
+
+        var lastRecord;
+        logIndex.keys[key].intervalId = setInterval(async () => {
+          var record = (await redisClient.getBuffer(Buffer.from(key)));
+          
+          if(deDupe) {  
+        
+            if(!lastRecord) {
+              lastRecord = record;
+              logIndex.keys[key].count++;
+              logIndex.keys[key].queue.push(record);
+            }
+
+            if(lastRecord.timestamp === record.timestamp) return;
+            
+            lastRecord = record;
+            logIndex.keys[key].queue.push(record);
+            
+            logIndex.keys[key].count++;
+          } else {
+            logIndex.keys[key].count++;
+            logIndex.keys[key].queue.push(record);
+          }
+        }, rateInMs);
+      });
+
+      fs.writeFileSync(path.join(__dirname, 'data', `${logIndex.started_at}-index.json`), JSON.stringify(logIndex));
+
+      function logWriter() {
+        Object.keys(logIndex.keys).forEach(k => {
+          var q = logIndex.keys[k],
+              writer = logIndex.keys[k].writer;
+          
+          var record;
+          while(record = q.pop()) {
+            writeStream.write(record);
+            writeStream.write("\n");
+          }
+        });
+
+        logIndex.writerIntervalId = setTimeout(logWriter, 1000);
+      }
+
+      logIndex.writerIntervalId = setTimeout(logWriter, 1000);
+
+      logs[logIndex.uuid] = logIndex;
+
+      cb(logIndex);
+    },
+    stopLogging: function(uuid) {
+      var logIndex = logs[uuid];
+
+      if(logIndex && logIndex.running) {
+        
+        function checkKeys() {
+          if(Object.keys(logIndex).map(k => logIndex[k].intervalId).every(id => id === 0)) {
+            logIndex.running = false;
+            logIndex.stopped_at = new Date().getTime();
+
+            fs.writeFileSync(path.join(__dirname, 'data', `${logIndex.started_at}-index.json`), JSON.stringify(logIndex));
+          }
+        }
+
+        Object.keys(logIndex).forEach(k => {
+          var key = logIndex[k];
+
+          function closeQueue() {
+            if(key.queue.length) return setTimeout(closeQueue, 1000);
+            clearInterval(key.IntervalId);
+            key.intervalId = 0;
+
+            key.writer.close();
+            checkKeys();
+          }
+
+          closeQueue();
+        });
+      }
     }
   });
 

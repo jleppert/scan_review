@@ -6,7 +6,7 @@
   <link rel="stylesheet" href="style.css">
   <style>
     main > .container {
-      padding: 60px 15px 0;
+      padding: 120px 15px 0;
     }
     
     .bd-placeholder-img {
@@ -26,6 +26,10 @@
         font-size: 3.5rem;
       }
      }
+
+     .scan-control {
+      margin-top: 56px;
+     }
   </style>
   
   <body class="d-flex flex-column h-100">
@@ -35,11 +39,11 @@
       <nav class="navbar navbar-expand-md navbar-dark fixed-top bg-dark">
         <div class="container-fluid">
           <a class="navbar-brand" href="#">Scan Review</a>
-          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
-          </button>
-          <div class="collapse navbar-collapse" id="navbarCollapse">
-          </div>
+        </div>
+      </nav>
+      <nav class="navbar navbar-light bg-light fixed-top scan-control">
+        <div class="container">
+          <button type="button" class="btn btn-outline-primary">Start Logging</button>
         </div>
       </nav>
     </header>
@@ -55,15 +59,22 @@
     </footer>
 
     <script type="text/html" id="plot">
-      <div class="row">
-        <div class="col"></div>
-        <div class="col-7 plot-container"></div>
-        <div class="col"></div>
+      <div class="row justify-content-md-center">
+        <div class="col col-lg-2"></div>
+        <div class="col-md-auto plot-container"></div>
+        <div class="col col-lg-2"></div>
       </div>
     </script>
     
-    <script src="/vendor.js"></script>
-    <script src="/client.js"></script>
+    <script src="vendor.js"></script>
+    <script src="bokeh.js"></script>
+    <script src="bokeh-widgets.js"></script>
+    <script src="bokeh-tables.js"></script>
+    <script src="bokeh-api.js"></script>
+    <script src="bokeh-gl.js"></script>
+    <script src="bokeh-mathjax.js"></script>
+
+    <script src="client.js"></script>
 
   </body>
 </html>

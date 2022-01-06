@@ -1,0 +1,3 @@
+[submodule "lib/bokeh"]
+	path = lib/bokeh
+	url = git@github.com:Inspectobot/bokeh.git 

@@ -100,11 +100,11 @@ function initUI() {
     yRange = new Bokeh.Range1d({ start: dim * -1, end: dim });
 
     positionPlot = new Bokeh.Plot({
-      title: '2D Tracked Position',
+      title: '2D Position Estimate',
       x_range: xRange,
       y_range: yRange,
-      width: 400,
-      height: 400,
+      width: initialWidth,
+      height: 500,
       background_fill_color: '#F2F2F7'
     });
 
@@ -114,16 +114,16 @@ function initUI() {
     });
 
     var xPositionPlot = new Bokeh.Plotting.figure({
-      title: 'X Axis Position',
-      width: 400,
+      title: 'X Position',
+      width: initialWidth,
       height: 400,
       background_fill_color: '#F2F2F7',
       tools: tools
     });
 
     var yPositionPlot = new Bokeh.Plotting.figure({
-      title: 'Y Axis Position',
-      width: 400,
+      title: 'Y Position',
+      width: initialWidth,
       height: 400,
       background_fill_color: '#F2F2F7',
       tools: tools
@@ -174,9 +174,43 @@ function initUI() {
 
     positionPlot.add_glyph(xyLine, positionSource);
 
+    var velocityPlot = new Bokeh.Plotting.figure({
+      title: 'Velocity Estimate',
+      width: initialWidth,
+      height: 400,
+      background_fill_color: '#F2F2F7',
+      tools: tools
+    });
+
+    var velocitySource = new Bokeh.ColumnDataSource({
+      data: {
+        timestamp: [],
+        x: [],
+        y: []
+      }
+    });
+
+
+    var velocityScheme = colorBrewer.Spectral[4];
+
+    velocityPlot.line({ field: 'timestamp' }, { field: 'x' }, {
+      source: velocitySource,
+      line_color: velocityScheme[0],
+      legend_label: 'velocity_x',
+      line_width: 2
+    });
+
+    velocityPlot.line({ field: 'timestamp' }, { field: 'y' }, {
+      source: velocitySource,
+      line_color: velocityScheme[1],
+      legend_label: 'velocity_y',
+      line_width: 2
+    });
+
     addPlot(positionPlot);
     addPlot(xPositionPlot);
     addPlot(yPositionPlot);
+    addPlot(velocityPlot);
 
     remote.on('rover_pose', 100, (key, pose) => {
       positionSource.data.timestamp.push(pose.timestamp);
@@ -195,9 +229,18 @@ function initUI() {
       ySource.change.emit();
     });
 
+    remote.on('rover_pose_velocity', 100, (key, velocity) => {
+      velocitySource.data.timestamp.push(velocity.timestamp);
+      velocitySource.data.x.push(velocity.x);
+      velocitySource.data.y.push(velocity.y);
+
+      velocitySource.change.emit();
+    });
+
+    var initialWidth = window.innerWidth * 0.75;
     var batteryPlot = new Bokeh.Plotting.figure({
       title: 'Battery State',
-      width: 400,
+      width: initialWidth,
       height: 400,
       background_fill_color: '#F2F2F7',
       tools: tools
@@ -205,7 +248,7 @@ function initUI() {
 
     var wheelEncodersPlot = new Bokeh.Plotting.figure({
       title: 'Wheel Encoders',
-      width: 400,
+      width: initialWidth,
       height: 400,
       background_fill_color: '#F2F2F7',
       tools: tools
@@ -254,7 +297,7 @@ function initUI() {
             y_range_name: yRangeName
           });
 
-          batteryPlot.add_layout(new Bokeh.LinearAxis({ y_range_name: yRangeName, axis_label: legendLabel, dimension: 1 }), i % 2 === 0 ? 'left' : 'right');
+          batteryPlot.add_layout(new Bokeh.LinearAxis({ y_range_name: yRangeName, axis_label: legendLabel }), i % 2 === 0 ? 'left' : 'right');
         });
 
         batteryPlot.change.emit();
@@ -317,7 +360,7 @@ function initUI() {
             }
           }
 
-          wheelEncodersPlot.add_layout(new Bokeh.LinearAxis({ y_range_name: yRangeName, axis_label: legendLabel, dimension: 1 }), i % 2 === 0 ? 'left' : 'right');
+          wheelEncodersPlot.add_layout(new Bokeh.LinearAxis({ y_range_name: yRangeName, axis_label: legendLabel }), bKey === 'rpm' ? 'left' : 'right');
         });
 
         wheelEncodersPlot.change.emit();
@@ -347,7 +390,8 @@ function initUI() {
 
     var wheelVelocityPlot = new Bokeh.Plotting.figure({
       title: 'Wheel Velocity Commands & Outputs',
-      width: 400,
+      width: initialWidth,
+      height: 400,
       background_fill_color: '#F2F2F7',
       y_range: wheelVelocityYRangeMapping.velocity,
       tools: tools
@@ -367,6 +411,7 @@ function initUI() {
         }
 
         wheelVelocityOutputSource = new Bokeh.ColumnDataSource({ data: outputData });
+        window.wheelVelocityOutputSource = wheelVelocityOutputSource;
 
         wheelVelocityOutputFields = Object.keys(wheelVelocityMessage).map((bKey, i) => {
           if(bKey === 'timestamp') return;
@@ -476,7 +521,7 @@ function addPlot(plot, data = {}) {
   var rect = container.appendChild(d.firstElementChild)
     .querySelector('.plot-container').getBoundingClientRect();
   
-  plot.frame_width = rect.width;
+  //plot.frame_width = rect.width;
 
-  plot.properties.height.change.emit();
+  //plot.properties.height.change.emit();
 }

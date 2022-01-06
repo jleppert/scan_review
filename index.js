@@ -35,13 +35,9 @@ app.use('/style.css', (req, res) => {
 
 var libraries = [
   path.join(__dirname, 'node_modules', 'bootstrap', 'dist', 'js', 'bootstrap.js'),
-  path.join(__dirname, 'node_modules', '@bokeh', 'bokehjs', 'build', 'js', 'bokeh.min.js'),
-  path.join(__dirname, 'node_modules', '@bokeh', 'bokehjs', 'build', 'js', 'bokeh-widgets.min.js'),
-  path.join(__dirname, 'node_modules', '@bokeh', 'bokehjs', 'build', 'js', 'bokeh-tables.min.js'),
-  path.join(__dirname, 'node_modules', '@bokeh', 'bokehjs', 'build', 'js', 'bokeh-api.min.js'),
-  path.join(__dirname, 'node_modules', '@bokeh', 'bokehjs', 'build', 'js', 'bokeh-gl.min.js'),
-  path.join(__dirname, 'node_modules', '@bokeh', 'bokehjs', 'build', 'js', 'bokeh-mathjax.min.js')
 ];
+
+app.use(express.static(path.join(__dirname, 'lib', 'bokeh', 'bokehjs', 'build', 'js')));
 
 app.use('/vendor.js', (req, res) => {
   res.status(200);
@@ -159,7 +155,7 @@ var sock = shoe(function(stream) {
           intervalId: 0,
           queue: [],
           count: 0,
-          writer: fs.createWriteStream(path.join(__dirname, 'data', `${logIndex.started_at}-${key}.msgpack`));
+          writer: fs.createWriteStream(path.join(__dirname, 'data', `${logIndex.started_at}-${key}.msgpack`))
         };
 
         var lastRecord;

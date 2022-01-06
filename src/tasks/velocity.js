@@ -22,25 +22,25 @@ var unpack = unpacker.unpack,
     var sampleRate = 100,
         samplesPerSecond = 1000 / sampleRate;
     
-    var lastPose;
+    var lastPose, lastAcceleration;
     setInterval(async () => {
       var pose = unpack(await redisClient.getBuffer(Buffer.from('rover_pose')));
 
       if(!lastPose) lastPose = pose;
-      
       var elapsed = pose.timestamp - lastPose.timestamp;
       
       if(elapsed > 0) {
         var velocityMessage = new Map();
         velocityMessage.set('timestamp', pose.timestamp);
-        velocityMessage.set('x', ((pose.pos[0] - lastPose.pos[0]) / elapsed) * samplesPerSecond);
-        velocityMessage.set('y', ((pose.pos[1] - lastPose.pos[1]) / elapsed) * samplesPerSecond);
-        velocityMessage.set('z', ((pose.pos[2] - lastPose.pos[2]) / elapsed) * samplesPerSecond);
+        velocityMessage.set('x', (pose.pos[0] - lastPose.pos[0]) / elapsed);
+        velocityMessage.set('y', (pose.pos[1] - lastPose.pos[1]) / elapsed);
+        velocityMessage.set('z', (pose.pos[2] - lastPose.pos[2]) / elapsed);
 
-        redisClient.set(Buffer.from('rover_pose_velocity'), packer.pack(velocityMessage));
+        redisClient.set(Buffer.from('rover_pose_velocity2'), packer.pack(velocityMessage));
       }
       
-      lastPose = pose; 
+      lastPose = pose;
+
     }, sampleRate);
 })();
 

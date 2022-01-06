@@ -82,13 +82,12 @@ var unpack = unpacker.unpack,
     function remapWheels(wheels) {
       return [
         wheels[3],
+        wheels[2],
         wheels[0],
-        wheels[1],
-        wheels[2]
+        wheels[1]
       ];
     }
 
-    // diameter: 90, 100
     function linearVelocityToRPM(wheels) {
       return wheels.map(v => {
         return (v * 60 / (Math.PI * 2));
@@ -133,10 +132,79 @@ var unpack = unpacker.unpack,
     var F = 1.0, kV = 1.0, kA = 1.0;
 
     
-    return;
+    var MAX_SPEED = 0.2, MAX_ACCEL = 0.1, setPoint = {
+      x: 0.0,
+      y: 0.5
+    };
 
+    var lastPose, lastVelocity;
     setInterval(async () => {
+      console.log('tick');
       var velocity = unpack(await(redisClient.getBuffer(Buffer.from('rover_pose_velocity')))),
+          pose = unpack(await(redisClient.getBuffer(Buffer.from('rover_pose'))));
+          
+      var xDirection = 1, yDirection = 1,
+          xPositionError = setPoint.x - pose.pos[0],
+          yPositionError = setPoint.y - pose.pos[1];
+     
+      console.log(pose, xPositionError, yPositionError) 
+      if(xPositionError < 0) xDirection = -1;
+      if(yPositionError < 0) yDirection = -1;
+
+      var outputVelocity = {
+        x: 0,
+        y: 0
+      }, outputAccel = {
+        x: 0,
+        y: 0
+      };
+
+      if(!lastPose) lastPose = pose;
+      if(!lastVelocity) lastVelocity = velocity;
+
+      if(MAX_SPEED > Math.abs(velocity.pos[0])) {
+        outputVelocity.x = velocity.pos[0] + xDirection * MAX_ACCEL * (pose.timestamp - lastPose.timestamp);
+        outputAccel.x = MAX_ACCEL;
+      } else {
+        outputVelocity.x = MAX_SPEED;
+        outputAccel.x = 0;
+      }
+
+      if(MAX_SPEED > Math.abs(velocity.pos[1])) {
+        outputVelocity.y = velocity.pos[1] + yDirection * MAX_ACCEL * (pose.timestamp - lastPose.timestamp);
+        outputAccel.y = MAX_ACCEL;
+      } else {
+        outputVelocity.y = MAX_SPEED;
+        outputAccel.y = 0;
+      }
+
+      if(xPositionError <= (outputVelocity.x * outputVelocity.x) / (2 * MAX_ACCEL)) {
+        outputVelocity.x = velocity.pos[0] - xDirection * MAX_ACCEL * (pose.timestamp - lastPose.timestamp);
+        outputAccel.x = -MAX_ACCEL;
+      }
+
+      if(yPositionError <= (outputVelocity.y * outputVelocity.y) / (2 * MAX_ACCEL)) {
+        outputVelocity.y = velocity.pos[1] - yDirection * MAX_ACCEL * (pose.timestamp - lastPose.timestamp);
+        outputAccel.y = -MAX_ACCEL;
+      }
+
+      var xVelocityError = outputVelocity.x - velocity.pos[0],
+          yVelocityError = outputVelocity.y - velocity.pos[1],
+          xAccel = (velocity.pos[0] - lastVelocity.pos[0]) / (pose.timestamp - lastPose.timestamp),
+          yAccel = (velocity.pos[1] - lastVelocity.pos[1]) / (pose.timestamp - lastPose.timestamp),
+          xAccelError = outputAccel.x - xAccel,
+          yAccelError = outputAccel.y - yAccel;
+
+      var outputX = F + kV * xVelocityError + kA * xAccelError,
+          outputY = F + kV * yVelocityError + kA * yAccelError;
+
+
+      console.log(linearVelocityToRPM(toWheelVelocity(outputX, outputY)));
+
+      lastPose = pose;
+      
+
+/*
           targetVelocity = velocities[i],
           targetAcceleration = accelerations[i];
 
@@ -168,6 +236,8 @@ var unpack = unpacker.unpack,
 
       i++;
       console.log(output);
+
+      */
     }, 100);
 
 

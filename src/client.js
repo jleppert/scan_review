@@ -4,7 +4,8 @@ var dnode         = require('dnode'),
     progressBar   = require('nprogress'),
     notify        = require('toastify-js'),
     template      = require('resig'),
-    colorBrewer   = require('colorbrewer');
+    colorBrewer   = require('colorbrewer'),
+    qte           = require('quaternion-to-euler');
 
 var remote;
 var connectionManager = reconnect((stream) => {
@@ -105,7 +106,8 @@ function initUI() {
       y_range: yRange,
       width: initialWidth,
       height: 500,
-      background_fill_color: '#F2F2F7'
+      background_fill_color: '#F2F2F7',
+      output_backend: 'webgl'
     });
 
     tools.forEach(t => {
@@ -115,18 +117,22 @@ function initUI() {
 
     var xPositionPlot = new Bokeh.Plotting.figure({
       title: 'X Position',
+      y_range: new Bokeh.Range1d({ start: dim * -1, end: dim }),
       width: initialWidth,
       height: 400,
       background_fill_color: '#F2F2F7',
-      tools: tools
+      tools: tools,
+      //output_backend: 'webgl'
     });
 
     var yPositionPlot = new Bokeh.Plotting.figure({
       title: 'Y Position',
+      y_range: new Bokeh.Range1d({ start: dim * -1, end: dim }),
       width: initialWidth,
       height: 400,
       background_fill_color: '#F2F2F7',
-      tools: tools
+      tools: tools,
+      //output_backend: 'webgl'
     });
 
     xAxis = new Bokeh.LinearAxis({ axis_line_color: null });
@@ -176,21 +182,23 @@ function initUI() {
 
     var velocityPlot = new Bokeh.Plotting.figure({
       title: 'Velocity Estimate',
+      y_range: new Bokeh.Range1d({ start: -0.5, end: 0.5 }),
       width: initialWidth,
       height: 400,
       background_fill_color: '#F2F2F7',
-      tools: tools
+      tools: tools,
+      //output_backend: 'webgl'
     });
 
     var velocitySource = new Bokeh.ColumnDataSource({
       data: {
         timestamp: [],
         x: [],
-        y: []
+        y: [],
+        theta: []
       }
     });
-
-
+    
     var velocityScheme = colorBrewer.Spectral[4];
 
     velocityPlot.line({ field: 'timestamp' }, { field: 'x' }, {
@@ -207,6 +215,14 @@ function initUI() {
       line_width: 2
     });
 
+    velocityPlot.line({ field: 'timestamp' }, { field: 'theta' }, {
+      source: velocitySource,
+      line_color: velocityScheme[2],
+      legend_label: 'velocity_θ',
+      line_width: 2
+    });
+
+
     addPlot(positionPlot);
     addPlot(xPositionPlot);
     addPlot(yPositionPlot);
@@ -214,13 +230,13 @@ function initUI() {
 
     remote.on('rover_pose', 100, (key, pose) => {
       positionSource.data.timestamp.push(pose.timestamp);
-      positionSource.data.x.push(pose.pos[0]);
-      positionSource.data.y.push(pose.pos[1] * -1);
+      positionSource.data.x.push(pose.pos[1]);
+      positionSource.data.y.push(pose.pos[0] * -1);
 
-      xSource.data.x.push(pose.pos[0]);
+      xSource.data.x.push(pose.pos[1]);
       xSource.data.timestamp.push(pose.timestamp);
 
-      ySource.data.y.push(pose.pos[1] * -1);
+      ySource.data.y.push(pose.pos[0] * -1);
       ySource.data.timestamp.push(pose.timestamp);
 
 
@@ -231,11 +247,21 @@ function initUI() {
 
     remote.on('rover_pose_velocity', 100, (key, velocity) => {
       velocitySource.data.timestamp.push(velocity.timestamp);
-      velocitySource.data.x.push(velocity.x);
-      velocitySource.data.y.push(velocity.y);
+      velocitySource.data.x.push(velocity.pos[1]);
+      velocitySource.data.y.push(velocity.pos[0]);
+
+      velocitySource.data.theta.push(velocity.theta[2]);
 
       velocitySource.change.emit();
     });
+
+    /*remote.on('rover_pose_velocity2', 100, (key, velocity) => {
+      velocitySource2.data.timestamp.push(velocity.timestamp);
+      velocitySource2.data.x.push(velocity.x);
+      velocitySource2.data.y.push(velocity.y);
+
+      velocitySource2.change.emit();
+    });*/
 
     var initialWidth = window.innerWidth * 0.75;
     var batteryPlot = new Bokeh.Plotting.figure({
@@ -243,7 +269,8 @@ function initUI() {
       width: initialWidth,
       height: 400,
       background_fill_color: '#F2F2F7',
-      tools: tools
+      tools: tools,
+      output_backend: 'webgl'
     });
 
     var wheelEncodersPlot = new Bokeh.Plotting.figure({
@@ -251,7 +278,8 @@ function initUI() {
       width: initialWidth,
       height: 400,
       background_fill_color: '#F2F2F7',
-      tools: tools
+      tools: tools,
+      //output_backend: 'webgl'
     });
 
     var batterySource = new Bokeh.ColumnDataSource({

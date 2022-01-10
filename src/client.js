@@ -5,6 +5,9 @@ var dnode         = require('dnode'),
     notify        = require('toastify-js'),
     template      = require('resig'),
     colorBrewer   = require('colorbrewer'),
+    THREE         = require('three'),
+    STLLoader     = require('three-stl-loader')(THREE),
+    drawHeading   = require('./heading'),
     qte           = require('quaternion-to-euler');
 
 var remote;
@@ -92,7 +95,43 @@ function initUI() {
   
   var tools = ['pan', 'crosshair', 'wheel_zoom', 'box_zoom', 'reset', 'save'];
   remote.getBaseStationConfig(config => {
-    
+
+    var scene = new THREE.Scene(),
+        camera = new THREE.OrthographicCamera(400 / -2, 400 / 2, 400 / 2, 400 / -2, -200, 200),
+        renderer = new THREE.WebGLRenderer({ alpha: true });
+
+    var directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+    directionalLight.position.set(200, 0, 0);
+    directionalLight.name = "directional";
+    scene.add(directionalLight);
+
+    var roverLoader = new STLLoader();
+
+    var roverMesh;
+    roverLoader.load('rover.stl', geometry => {
+      var material = new THREE.MeshNormalMaterial();
+      roverMesh = new THREE.Mesh(geometry, material);
+
+      roverMesh.position.y = 0;
+      roverMesh.position.x = 0;
+      roverMesh.position.z = 0;
+
+
+      //roverMesh.rotation.set(new THREE.Vector3( 0, 0, Math.PI / 2));
+
+      scene.add(roverMesh);
+    });
+
+    renderer.setClearColor(0x000000, 0);
+    renderer.setPixelRatio(window.devicePixelRatio);
+
+    renderer.setSize(300, 300);
+    renderer.domElement.classList.add('rover-visual');
+    document.body.appendChild(renderer.domElement);
+
+    var heading = document.getElementById('heading');
+    drawHeading(heading);
+
     currentTrackerConfig = config;
 
     var dim = 1.397 / 2;
@@ -239,10 +278,20 @@ function initUI() {
       ySource.data.y.push(pose.pos[0] * -1);
       ySource.data.timestamp.push(pose.timestamp);
 
-
       positionSource.change.emit();
       xSource.change.emit();
       ySource.change.emit();
+      
+      renderer.render(scene, camera);
+
+      if(!roverMesh) return;
+      var euler = qte(pose.rot);
+
+      roverMesh.rotation.x = euler[0];
+      roverMesh.rotation.y = euler[1];
+      roverMesh.rotation.z = euler[2];
+
+      renderer.render(scene, camera);
     });
 
     remote.on('rover_pose_velocity', 100, (key, velocity) => {

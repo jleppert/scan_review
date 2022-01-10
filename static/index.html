@@ -30,6 +30,21 @@
      .scan-control {
       margin-top: 56px;
      }
+
+     .rover-visual {
+        position: fixed;
+        top: 100px;
+        left: 20px;
+        z-index: 99999;
+        transform: scale(0.70);
+      }
+
+      .heading {
+        position: fixed;
+        top: 100px;
+        left: 20px;
+        z-index: 99999;
+      }
   </style>
   
   <body class="d-flex flex-column h-100">
@@ -47,6 +62,9 @@
         </div>
       </nav>
     </header>
+
+    <svg id="heading" class="heading" width="300" height="300" xmlns="http://www.w3.org/2000/svg"></svg>
+
 
     <main class="flex-shrink-0">
       <div class="container"></div>

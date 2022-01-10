@@ -227,13 +227,27 @@ var unpack = unpacker.unpack,
 
     var atPositionX = false, atPositionY = false, lastPose = startingPose, resetId, xSet = 0.0, ySet = -0.5;
     setInterval(async () => {
+       
       //console.log('tick');
       var velocity = unpack(await(redisClient.getBuffer(Buffer.from('rover_pose_velocity')))),
           pose = unpack(await(redisClient.getBuffer(Buffer.from('rover_pose'))));
          
       pose.pos[0] = pose.pos[0] - startingPose.pos[0];
       pose.pos[1] = pose.pos[1] - startingPose.pos[1];
-      
+
+      //console.log('rot', rad2Deg(qte(pose.rot)[2]));
+
+     //return; 
+      var x = new Map();
+        x.set('timestamp', microtime.now() - startTime);
+        var wheelOutputs = remapWheels(linearVelocityToRPM(toWheelVelocity(0, 0, 0.4)));
+        
+        x.set('velocity', wheelOutputs.map(v => Math.round(v)));
+
+      await redisClient.set(Buffer.from('rover_wheel_velocity_command'), packer.pack(x));
+
+
+      return;
       //lastPose = Object.assign({}, pose);
 
       /*var startingAngle = qte(startingPose.rot)[2],
@@ -313,7 +327,6 @@ var unpack = unpacker.unpack,
         resetId = setTimeout(async () => {
           //startingPose = unpack(await(redisClient.getBuffer(Buffer.from('rover_pose'))));
 
-          console.log('resetting!!!!!!!!!!!!!!!!!!!');
           xVelocity = 0;
           yVelocity = 0;
           if(ySet > 0) {

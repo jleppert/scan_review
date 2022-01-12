@@ -8,6 +8,7 @@ var dnode         = require('dnode'),
     THREE         = require('three'),
     STLLoader     = require('three-stl-loader')(THREE),
     drawHeading   = require('./heading'),
+    LowPassFilter = require('./control/LowPassFilter'),
     qte           = require('quaternion-to-euler');
 
 var remote;
@@ -32,7 +33,6 @@ var connectionManager = reconnect((stream) => {
 
 
   d.pipe(stream).pipe(d);
-
 
 }).connect('/ws');
 
@@ -80,12 +80,10 @@ connectionManager.on('reconnect', () => {
   }).showToast();
 });
 
-
 const toPascal = (s) => {
   var str = s.toLowerCase().replace(/[^a-zA-Z0-9]+(.)/g, (m, chr) => chr.toUpperCase());
   return str.charAt(0).toUpperCase() + str.slice(1);
 };
-
 
 var currentTrackerConfig;
 function initUI() {
@@ -127,8 +125,11 @@ function initUI() {
 
     renderer.setSize(300, 300);
     renderer.domElement.classList.add('rover-visual');
-    document.body.appendChild(renderer.domElement);
+    
+    var headingContainer = document.querySelector('.heading-container');
+    headingContainer.appendChild(renderer.domElement);
 
+    var headingNumber = document.getElementById('heading-number');
     var heading = document.getElementById('heading');
     drawHeading(heading);
 
@@ -219,6 +220,8 @@ function initUI() {
 
     positionPlot.add_glyph(xyLine, positionSource);
 
+
+    var TAU = Math.PI * 2;
     var velocityPlot = new Bokeh.Plotting.figure({
       title: 'Velocity Estimate',
       y_range: new Bokeh.Range1d({ start: -0.5, end: 0.5 }),
@@ -226,7 +229,9 @@ function initUI() {
       height: 400,
       background_fill_color: '#F2F2F7',
       tools: tools,
-      //output_backend: 'webgl'
+      extra_y_ranges: {
+        velocity_theta: new Bokeh.Range1d({ start: TAU * -1, end: TAU }),
+      }
     });
 
     var velocitySource = new Bokeh.ColumnDataSource({
@@ -258,24 +263,38 @@ function initUI() {
       source: velocitySource,
       line_color: velocityScheme[2],
       legend_label: 'velocity_θ',
-      line_width: 2
+      line_width: 2,
+      y_range_name: 'velocity_theta'
     });
 
+    velocityPlot.add_layout(new Bokeh.LinearAxis({ y_range_name: 'velocity_theta', axis_label: 'velocity_θ (radian/sec)' }), 'left');
 
     addPlot(positionPlot);
     addPlot(xPositionPlot);
     addPlot(yPositionPlot);
     addPlot(velocityPlot);
+    
+    function rad2Deg(rad) {
+      return rad * 180 / Math.PI;
+    }
+
+    function deg2Rad(deg) {
+      return deg * Math.PI / 180;
+    }
+
+    function convertAngle(deg) {
+      return deg;
+    }
 
     remote.on('rover_pose', 100, (key, pose) => {
       positionSource.data.timestamp.push(pose.timestamp);
-      positionSource.data.x.push(pose.pos[1]);
-      positionSource.data.y.push(pose.pos[0] * -1);
+      positionSource.data.x.push(pose.pos[0] * -1);
+      positionSource.data.y.push(pose.pos[1] * -1);
 
-      xSource.data.x.push(pose.pos[1]);
+      xSource.data.x.push(pose.pos[0] * -1);
       xSource.data.timestamp.push(pose.timestamp);
 
-      ySource.data.y.push(pose.pos[0] * -1);
+      ySource.data.y.push(pose.pos[1] * -1);
       ySource.data.timestamp.push(pose.timestamp);
 
       positionSource.change.emit();
@@ -287,19 +306,22 @@ function initUI() {
       if(!roverMesh) return;
       var euler = qte(pose.rot);
 
-      roverMesh.rotation.x = euler[0];
-      roverMesh.rotation.y = euler[1];
+      headingNumber.innerText = convertAngle(rad2Deg(euler[2])).toFixed(2) + '°';
+
+      //roverMesh.rotation.x = euler[0];
+      //roverMesh.rotation.y = euler[1];
       roverMesh.rotation.z = euler[2];
 
       renderer.render(scene, camera);
     });
 
+    var filter = new LowPassFilter(0.5);
     remote.on('rover_pose_velocity', 100, (key, velocity) => {
       velocitySource.data.timestamp.push(velocity.timestamp);
-      velocitySource.data.x.push(velocity.pos[1]);
-      velocitySource.data.y.push(velocity.pos[0]);
+      velocitySource.data.x.push(velocity.pos[0] * -1);
+      velocitySource.data.y.push(velocity.pos[1] * -1);
 
-      velocitySource.data.theta.push(velocity.theta[2]);
+      velocitySource.data.theta.push(filter.estimate(velocity.theta[2]));
 
       velocitySource.change.emit();
     });

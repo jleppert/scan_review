@@ -39,11 +39,20 @@
         transform: scale(0.70);
       }
 
-      .heading {
+      .heading-container {
         position: fixed;
         top: 100px;
         left: 20px;
         z-index: 99999;
+
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+     #heading-number {
+        position: absolute;
+        bottom: -10px;
       }
   </style>
   
@@ -62,9 +71,11 @@
         </div>
       </nav>
     </header>
-
-    <svg id="heading" class="heading" width="300" height="300" xmlns="http://www.w3.org/2000/svg"></svg>
-
+    
+    <div class="heading-container">
+      <div id="heading-number"></div>
+      <svg id="heading" class="heading" width="300" height="300" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
 
     <main class="flex-shrink-0">
       <div class="container"></div>

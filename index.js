@@ -121,6 +121,16 @@ var sock = shoe(function(stream) {
       delete remote.timers[`${key}_${rateInMs}`];
     },
 
+    subscribe: async function(key, cb = function() {}) {
+      var subscriber = redisClient.duplicate();
+
+      await subscriber.connect();
+
+      await subscriber.subscribe(key, message => {
+        cb(key, message);
+      });
+    },
+
     startLogging: async function(cb = function() {}) {
       var logIndex = {
         started_at: new Date().getTime(),

@@ -286,6 +286,10 @@ function initUI() {
       return deg;
     }
 
+    remote.subscribe('rover_trajectory_sample', (key, trajectory) => {
+      console.log(key, trajectory);
+    });
+
     remote.on('rover_pose', 100, (key, pose) => {
       positionSource.data.timestamp.push(pose.timestamp);
       positionSource.data.x.push(pose.pos[0] * -1);
@@ -321,7 +325,7 @@ function initUI() {
       velocitySource.data.x.push(velocity.pos[0] * -1);
       velocitySource.data.y.push(velocity.pos[1] * -1);
 
-      velocitySource.data.theta.push(filter.estimate(velocity.theta[2]));
+      velocitySource.data.theta.push(filter.estimate(velocity.theta[2] * -1));
 
       velocitySource.change.emit();
     });

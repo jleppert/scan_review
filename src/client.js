@@ -129,7 +129,9 @@ function initUI() {
     var headingContainer = document.querySelector('.heading-container');
     headingContainer.appendChild(renderer.domElement);
 
-    var headingNumber = document.getElementById('heading-number');
+    var headingNumberDegree = document.getElementById('heading-number-degree');
+    var headingNumberRadian = document.getElementById('heading-number-radian');
+
     var heading = document.getElementById('heading');
     drawHeading(heading);
 
@@ -175,6 +177,29 @@ function initUI() {
       //output_backend: 'webgl'
     });
 
+    var headingPlot = new Bokeh.Plotting.figure({
+      title: 'Heading Estimate',
+      y_range: new Bokeh.Range1d({ start: -Math.PI, end: Math.PI }),
+      width: initialWidth,
+      height: 400,
+      background_fill_color: '#F2F2F7',
+      tools: tools
+    });
+
+    var headingSource = new Bokeh.ColumnDataSource({
+      data: { timestamp: [], theta: [] }
+    });
+
+    var headingScheme = colorBrewer.Spectral[4];
+
+    headingPlot.line({ field: 'timestamp' }, { field: 'theta' }, {
+      source: headingSource,
+      line_color: headingScheme[0],
+      legend_label: 'yaw',
+      line_width: 2
+    });
+
+
     xAxis = new Bokeh.LinearAxis({ axis_line_color: null });
     yAxis = new Bokeh.LinearAxis({ axis_line_color: null });
 
@@ -188,6 +213,10 @@ function initUI() {
     positionPlot.add_layout(yGrid);
 
     positionSource = new Bokeh.ColumnDataSource({
+      data: { timestamp: [], x: [], y: [] }
+    });
+
+    trajectorySource = new Bokeh.ColumnDataSource({
       data: { timestamp: [], x: [], y: [] }
     });
 
@@ -206,6 +235,25 @@ function initUI() {
       line_width: 2
     });
 
+    const xyLineTrajectory = new Bokeh.Line({
+      x: { field: "x" },
+      y: { field: "y" },
+      line_color: "#43ac6a",
+      line_width: 2
+    });
+
+    var xyLineGlyphRenderer = positionPlot.add_glyph(xyLine, positionSource);
+    var xyLineTrajectoryGlyphRenderer = positionPlot.add_glyph(xyLineTrajectory, trajectorySource);
+
+    var positionLegend = new Bokeh.Legend({
+      items: [
+        new Bokeh.LegendItem({ label: { value: 'Estimate' }, renderers: [xyLineGlyphRenderer] }),
+        new Bokeh.LegendItem({ label: { value: 'Trajectory' }, renderers: [xyLineTrajectoryGlyphRenderer] })
+      ]
+    });
+
+    positionPlot.add_layout(positionLegend);
+
     xPositionPlot.line({ field: 'timestamp' }, { field: 'x' }, {
       source: xSource,
       line_color: "#666699",
@@ -217,9 +265,6 @@ function initUI() {
       line_color: "#666699",
       line_width: 2
     });
-
-    positionPlot.add_glyph(xyLine, positionSource);
-
 
     var TAU = Math.PI * 2;
     var velocityPlot = new Bokeh.Plotting.figure({
@@ -273,6 +318,8 @@ function initUI() {
     addPlot(xPositionPlot);
     addPlot(yPositionPlot);
     addPlot(velocityPlot);
+
+    addPlot(headingPlot);
     
     function rad2Deg(rad) {
       return rad * 180 / Math.PI;
@@ -286,8 +333,16 @@ function initUI() {
       return deg;
     }
 
-    remote.subscribe('rover_trajectory_sample', (key, trajectory) => {
-      console.log(key, trajectory);
+    remote.subscribe('rover_trajectory_sample', (key, trajectories) => {
+      trajectories.forEach(trajectory => {
+        trajectorySource.data.timestamp.push(trajectory.time);
+        trajectorySource.data.x.push(trajectory.pose.translation.x);
+        trajectorySource.data.y.push(trajectory.pose.translation.y);
+      });
+
+      trajectorySource.change.emit();
+
+      console.log(key, trajectories);
     });
 
     remote.on('rover_pose', 100, (key, pose) => {
@@ -301,6 +356,12 @@ function initUI() {
       ySource.data.y.push(pose.pos[1] * -1);
       ySource.data.timestamp.push(pose.timestamp);
 
+      var euler = qte(pose.rot);
+      headingSource.data.theta.push(euler[2]);
+      headingSource.data.timestamp.push(pose.timestamp);
+
+      headingSource.change.emit();
+
       positionSource.change.emit();
       xSource.change.emit();
       ySource.change.emit();
@@ -308,9 +369,10 @@ function initUI() {
       renderer.render(scene, camera);
 
       if(!roverMesh) return;
-      var euler = qte(pose.rot);
 
-      headingNumber.innerText = convertAngle(rad2Deg(euler[2])).toFixed(2) + '°';
+      headingNumberDegree.innerText = rad2Deg(convertAngle(euler[2])).toFixed(2) + '°';
+      headingNumberRadian.innerText = euler[2].toFixed(2);
+
 
       //roverMesh.rotation.x = euler[0];
       //roverMesh.rotation.y = euler[1];

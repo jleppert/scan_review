@@ -127,7 +127,7 @@ var sock = shoe(function(stream) {
       await subscriber.connect();
 
       await subscriber.subscribe(key, message => {
-        cb(key, message);
+        cb(key, JSON.parse(message));
       });
     },
 

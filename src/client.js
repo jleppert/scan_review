@@ -143,7 +143,7 @@ function initUI() {
     yRange = new Bokeh.Range1d({ start: dim * -1, end: dim });
 
     positionPlot = new Bokeh.Plot({
-      title: '2D Position Estimate',
+      title: 'Estimated Position Path & Trajectory Plan',
       x_range: xRange,
       y_range: yRange,
       width: initialWidth,
@@ -194,8 +194,8 @@ function initUI() {
 
     headingPlot.line({ field: 'timestamp' }, { field: 'theta' }, {
       source: headingSource,
-      line_color: headingScheme[0],
-      legend_label: 'yaw',
+      line_color: "#666699",
+      legend_label: 'Estimate',
       line_width: 2
     });
 
@@ -228,6 +228,14 @@ function initUI() {
       data: { timestamp: [], y: [] }
     });
 
+    var xTrajectorySource = new Bokeh.ColumnDataSource({
+      data: { timestamp: [], x: [] }
+    });
+
+    var yTrajectorySource = new Bokeh.ColumnDataSource({
+      data: { timestamp: [], y: [] }
+    });
+
     const xyLine = new Bokeh.Line({
       x: { field: "x" },
       y: { field: "y" },
@@ -257,14 +265,31 @@ function initUI() {
     xPositionPlot.line({ field: 'timestamp' }, { field: 'x' }, {
       source: xSource,
       line_color: "#666699",
+      legend_label: 'Estimate',
       line_width: 2
+    });
+
+    xPositionPlot.line({ field: 'timestamp' }, { field: 'x', }, {
+      source: xTrajectorySource,
+      line_color: "#43ac6a",
+      line_width: 2,
+      legend_label: 'Trajectory'
     });
 
     yPositionPlot.line({ field: 'timestamp' }, { field: 'y' }, {
       source: ySource,
       line_color: "#666699",
+      legend_label: 'Estimate',
       line_width: 2
     });
+
+    yPositionPlot.line({ field: 'timestamp' }, { field: 'x', }, {
+      source: yTrajectorySource,
+      line_color: "#43ac6a",
+      line_width: 2,
+      legend_label: 'Trajectory'
+    });
+
 
     var TAU = Math.PI * 2;
     var velocityPlot = new Bokeh.Plotting.figure({
@@ -338,6 +363,18 @@ function initUI() {
         trajectorySource.data.timestamp.push(trajectory.time);
         trajectorySource.data.x.push(trajectory.pose.translation.x);
         trajectorySource.data.y.push(trajectory.pose.translation.y);
+
+        var tX = trajectory.pose.translation.x + (0.01 * Math.cos(trajectory.pose.rotation.radians)),
+            tY = trajectory.pose.translation.y + (0.01 * Math.sin(trajectory.pose.rotation.radians));
+        
+        positionPlot.add_layout(
+          new Bokeh.Arrow(
+          { end: new Bokeh.VeeHead({ size: 10, fill_alpha: 0.5 }), 
+            x_start: trajectory.pose.translation.x, 
+            y_start: trajectory.pose.translation.y, 
+            x_end: tX,
+            y_end: tY
+          }));
       });
 
       trajectorySource.change.emit();

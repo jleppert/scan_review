@@ -9,6 +9,7 @@ var dnode         = require('dnode'),
     STLLoader     = require('three-stl-loader')(THREE),
     drawHeading   = require('./heading'),
     LowPassFilter = require('./control/LowPassFilter'),
+    dat           = require('dat.gui'),
     qte           = require('quaternion-to-euler');
 
 var remote;
@@ -357,6 +358,53 @@ function initUI() {
     function convertAngle(deg) {
       return deg;
     }
+
+    var paramsGui;
+
+    var paramsConstraints = {
+      maxVelocity: [0, 1, 0.1, 'meters/sec'],
+      maxAcceleration: [0, 1, 0.01, 'meters/sec^2'],
+      maxAngularVelocity: [0, 2 * Math.PI, 0.1, 'radians/sec'],
+      maxAngularAcceleration: [0, 2 * Math.PI, 0.1, 'radians/sec^2'],
+      trackWidth: [0.001, 1, 0.001, 'meters'],
+      wheelBase: [0.001, 1, 0.001, 'meters'],
+      wheelDiameter: [0.001, 1, 0.001, 'meters'],
+      controllerUpdateRate: [10, 100, 1, 'hz'],
+      maxXPosition: [0.1, 1, 0.01, 'meters'],
+      maxYPosition: [0.1, 1, 0.01, 'meters'],
+      linearTolerance: [0.001, 0.1, 0.001, 'meters'],
+      angularTolerance: [2.0 * Math.PI / 360, 2.0 * Math.PI / 90, 'radians'],
+      xControllerP: [0.1, 10, 0.001],
+      xControllerI: [0, 5, 0.001],
+      xControllerD: [0, 5, 0.001],
+      yControllerP: [0.1, 10, 0.001],
+      yControllerI: [0, 5, 0.001],
+      yControllerD: [0, 5, 0.001],
+      thetaControllerP: [0.1, 10, 0.001],
+      thetaControllerI: [0, 5, 0.001],
+      thetaControllerD: [0, 5, 0.001],
+    };
+    remote.getParameters(params => {
+      console.log('current params', params);
+      if(paramsGui) paramsGui.destory();
+
+      paramsGui = new dat.gui.GUI({ width: 400 });
+      paramsGui.domElement.parentElement.style.top = '110px';
+
+      var tuning = paramsGui.addFolder('Controls Tuning');
+
+      Object.keys(params).forEach(key => {
+        if(key === 'timestamp') return;
+
+        var c = paramsConstraints[key];
+
+        tuning.add(params, key).min(c[0]).max(c[1]).step(c[2]);
+
+
+      });
+
+      tuning.open();
+    });
 
     remote.subscribe('rover_trajectory_sample', (key, trajectories) => {
       trajectories.forEach(trajectory => {

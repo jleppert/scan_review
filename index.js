@@ -10,6 +10,7 @@ var fs            = require('fs'),
     shoe          = require('shoe'),
     redis         = require('redis'),
     msgpack       = require('msgpackr'),
+    microtime     = require('microtime'),
     EventEmitter  = require('events'),
     browserify    = require('browserify-middleware');
 
@@ -129,6 +130,28 @@ var sock = shoe(function(stream) {
       await subscriber.subscribe(key, message => {
         cb(key, JSON.parse(message));
       });
+    },
+
+    getParameters: async function(cb = function() {}) {
+      cb(unpack((await redisClient.getBuffer('rover_parameters')))); 
+    },
+
+    setParameters: async function(params, cb = function() {}) {
+      var currentParams = unpack((await redisClient.getBuffer('rover_parameters')));
+
+      var startupTimestamp  = parseInt(await client.get('rover_startup_timestamp'));
+
+      params.set('timestamp', microtime.now() - startupTimestamp);  
+
+      var packedParams = packer.pack(params);
+
+      console.log('current params', currentParams, 'new params', params);
+
+      await client.set(Buffer.from('rover_parameters'), packedParams);
+
+      await client.publish(Buffer.from('rover_parameters'), packedParams);
+
+      cb(unpack((await redisClient.getBuffer('rover_parameters')))); 
     },
 
     startLogging: async function(cb = function() {}) {

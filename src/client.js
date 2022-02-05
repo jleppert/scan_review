@@ -398,12 +398,21 @@ function initUI() {
 
         var c = paramsConstraints[key];
 
-        tuning.add(params, key).min(c[0]).max(c[1]).step(c[2]);
+        tuning.add(params, key).min(c[0]).max(c[1]).step(c[2])
+          .onFinishChange(() => {
+            console.log('value changed!!');
+
+            remote.setParameters(params, setParams => {
+              console.log('set new params', setParams);
+            });
+          });
 
 
       });
 
       tuning.open();
+
+      //debugger;
     });
 
     remote.subscribe('rover_trajectory_sample', (key, trajectories) => {

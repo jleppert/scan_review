@@ -136,10 +136,12 @@ var sock = shoe(function(stream) {
       cb(unpack((await redisClient.getBuffer('rover_parameters')))); 
     },
 
-    setParameters: async function(params, cb = function() {}) {
+    setParameters: async function(params = {}, cb = function() {}) {
+      params = new Map(Object.entries(params));
+
       var currentParams = unpack((await redisClient.getBuffer('rover_parameters')));
 
-      var startupTimestamp  = parseInt(await client.get('rover_startup_timestamp'));
+      var startupTimestamp = parseInt(await redisClient.get('rover_startup_timestamp'));
 
       params.set('timestamp', microtime.now() - startupTimestamp);  
 
@@ -147,9 +149,9 @@ var sock = shoe(function(stream) {
 
       console.log('current params', currentParams, 'new params', params);
 
-      await client.set(Buffer.from('rover_parameters'), packedParams);
+      await redisClient.set(Buffer.from('rover_parameters'), packedParams);
 
-      await client.publish(Buffer.from('rover_parameters'), packedParams);
+      await redisClient.publish(Buffer.from('rover_parameters'), packedParams);
 
       cb(unpack((await redisClient.getBuffer('rover_parameters')))); 
     },

@@ -115,9 +115,6 @@ function initUI() {
       roverMesh.position.x = 0;
       roverMesh.position.z = 0;
 
-
-      //roverMesh.rotation.set(new THREE.Vector3( 0, 0, Math.PI / 2));
-
       scene.add(roverMesh);
     });
 
@@ -340,12 +337,12 @@ function initUI() {
 
     velocityPlot.add_layout(new Bokeh.LinearAxis({ y_range_name: 'velocity_theta', axis_label: 'velocity_θ (radian/sec)' }), 'left');
 
-    addPlot(positionPlot);
-    addPlot(xPositionPlot);
-    addPlot(yPositionPlot);
-    addPlot(velocityPlot);
+    addPlot(positionPlot, positionSource);
+    addPlot(xPositionPlot, xSource);
+    addPlot(yPositionPlot, ySource);
+    addPlot(velocityPlot, velocitySource);
 
-    addPlot(headingPlot);
+    addPlot(headingPlot, headingSource);
     
     function rad2Deg(rad) {
       return rad * 180 / Math.PI;
@@ -454,25 +451,20 @@ function initUI() {
       headingSource.data.theta.push(euler[2]);
       headingSource.data.timestamp.push(pose.timestamp);
 
-      headingSource.change.emit();
+      /*headingSource.change.emit();
 
       positionSource.change.emit();
       xSource.change.emit();
-      ySource.change.emit();
+      ySource.change.emit();*/
       
-      renderer.render(scene, camera);
-
       if(!roverMesh) return;
 
       headingNumberDegree.innerText = rad2Deg(convertAngle(euler[2])).toFixed(2) + '°';
       headingNumberRadian.innerText = euler[2].toFixed(2);
 
-
-      //roverMesh.rotation.x = euler[0];
-      //roverMesh.rotation.y = euler[1];
       roverMesh.rotation.z = euler[2];
 
-      renderer.render(scene, camera);
+      //renderer.render(scene, camera);
     });
 
     var filter = new LowPassFilter(0.5);
@@ -483,7 +475,7 @@ function initUI() {
 
       velocitySource.data.theta.push(filter.estimate(velocity.theta[2] * -1));
 
-      velocitySource.change.emit();
+      //velocitySource.change.emit();
     });
 
     /*remote.on('rover_pose_velocity2', 100, (key, velocity) => {
@@ -510,7 +502,7 @@ function initUI() {
       height: 400,
       background_fill_color: '#F2F2F7',
       tools: tools,
-      //output_backend: 'webgl'
+      output_backend: 'webgl'
     });
 
     var batterySource = new Bokeh.ColumnDataSource({
@@ -561,7 +553,7 @@ function initUI() {
 
         batteryPlot.change.emit();
 
-        addPlot(batteryPlot);
+        addPlot(batteryPlot, batterySource);
       } else {
         Object.keys(batteryMessage).forEach(key => {
           if(key === 'timestamp') return batterySource.data.timestamp.push(batteryMessage.timestamp);
@@ -569,7 +561,7 @@ function initUI() {
 
         });
 
-        batterySource.change.emit();
+        //batterySource.change.emit();
       }
     });
 
@@ -624,7 +616,7 @@ function initUI() {
 
         wheelEncodersPlot.change.emit();
 
-        addPlot(wheelEncodersPlot);
+        addPlot(wheelEncodersPlot, wheelEncodersSource);
       } else {
         Object.keys(wheelEncoderMessage).forEach(k => {
           if(k === 'timestamp') return wheelEncodersSource.data.timestamp.push(wheelEncoderMessage.timestamp);
@@ -636,7 +628,7 @@ function initUI() {
           }
         });
 
-        wheelEncodersSource.change.emit();
+        //wheelEncodersSource.change.emit();
 
       }
     });
@@ -691,7 +683,7 @@ function initUI() {
         wheelVelocityPlot.change.emit();
         window.addPlot = addPlot;
         window.wheelVelocityPlot = wheelVelocityPlot;
-        addPlot(wheelVelocityPlot);
+        addPlot(wheelVelocityPlot, wheelVelocityOutputSource);
       } else {
         Object.keys(wheelVelocityMessage).forEach(k => {
           if(k === 'timestamp') return wheelVelocityOutputSource.data.timestamp.push(wheelVelocityMessage.timestamp);
@@ -703,7 +695,7 @@ function initUI() {
           }
         });
 
-        wheelVelocityOutputSource.change.emit();
+        //wheelVelocityOutputSource.change.emit();
       }
     });
 
@@ -760,26 +752,69 @@ function initUI() {
         }
       });
 
-      wheelVelocityCommandSource.change.emit();
+      //wheelVelocityCommandSource.change.emit();
     
     });
 
+    
+    function update() {
+      addedPlots.forEach(plot => {
+        if(plot[1] && plot[1]._enableUpdate) plot[1].change.emit();
+      });
 
+      renderer.render(scene, camera);
+
+      requestAnimationFrame(update);
+    }
+
+    function isElementInViewport (el) {
+      var rect = el.getBoundingClientRect();
+
+      return (
+          rect.top >= 0 &&
+          rect.left >= 0 &&
+          rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) && /* or $(window).height() */
+          rect.right <= (window.innerWidth || document.documentElement.clientWidth) /* or $(window).width() */
+      );
+    }
+
+    function enablePlotRender() {
+      addedPlots.forEach(plot => {
+        if(isElementInViewport(plot[0])) {
+          plot[1]._enableUpdate = true;
+        } else {
+          plot[1]._enableUpdate = false;
+        }
+      });
+    }
+
+    setInterval(() => {
+      enablePlotRender();
+    }, 1000);
+
+    update();
 
   });
 }
 
+var addedPlots = [];
+
 var container = document.querySelector('main > div.container');
-function addPlot(plot, data = {}) {
+function addPlot(plot, source) {
   var d = document.createElement('div');
+
+  source._enableUpdate = false;
  
-  d.innerHTML = template('plot', data);
+  d.innerHTML = template('plot', {});
 
   Bokeh.Plotting.show(plot, d.querySelector('.plot-container'));
 
-  var rect = container.appendChild(d.firstElementChild)
-    .querySelector('.plot-container').getBoundingClientRect();
+  var el = container.appendChild(d.firstElementChild)
+    .querySelector('.plot-container');
   
+  addedPlots.push([el, source]);
+
+
   //plot.frame_width = rect.width;
 
   //plot.properties.height.change.emit();

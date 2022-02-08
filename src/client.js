@@ -338,8 +338,8 @@ function initUI() {
     velocityPlot.add_layout(new Bokeh.LinearAxis({ y_range_name: 'velocity_theta', axis_label: 'velocity_θ (radian/sec)' }), 'left');
 
     addPlot(positionPlot, positionSource);
-    addPlot(xPositionPlot, xSource);
-    addPlot(yPositionPlot, ySource);
+    addPlot(xPositionPlot, [xSource, xTrajectorySource]);
+    addPlot(yPositionPlot, [ySource, yTrajectorySource]);
     addPlot(velocityPlot, velocitySource);
 
     addPlot(headingPlot, headingSource);
@@ -412,7 +412,7 @@ function initUI() {
       //debugger;
     });
 
-    remote.subscribe('rover_trajectory_sample', (key, trajectories) => {
+    remote.subscribe('rover_trajectory_profile', (key, trajectories) => {
       trajectories.forEach(trajectory => {
         trajectorySource.data.timestamp.push(trajectory.time);
         trajectorySource.data.x.push(trajectory.pose.translation.x);
@@ -434,6 +434,14 @@ function initUI() {
       trajectorySource.change.emit();
 
       console.log(key, trajectories);
+    });
+
+    remote.subscribe('rover_trajectory_sample', (key, sample) => {
+      xTrajectorySource.data.timestamp.push(sample.timestamp);
+      xTrajectorySource.data.x.push(sample.trajectory.pose.translation.x);
+
+      yTrajectorySource.data.timestamp.push(sample.timestamp);
+      yTrajectorySource.data.y.push(sample.trajectory.pose.translation.y);
     });
 
     remote.on('rover_pose', 100, (key, pose) => {
@@ -756,10 +764,13 @@ function initUI() {
     
     });
 
-    
     function update() {
       addedPlots.forEach(plot => {
-        if(plot[1] && plot[1]._enableUpdate) plot[1].change.emit();
+        if(plot[1]) {
+          plot[1].forEach(s => {
+            if(s._enableUpdate) s.change.emit();
+          });
+        }
       });
 
       renderer.render(scene, camera);
@@ -781,9 +792,9 @@ function initUI() {
     function enablePlotRender() {
       addedPlots.forEach(plot => {
         if(isElementInViewport(plot[0])) {
-          plot[1]._enableUpdate = true;
+          plot[1].forEach(s => { s._enableUpdate = true; });
         } else {
-          plot[1]._enableUpdate = false;
+          plot[1].forEach(s => { s._enableUpdate = false; });
         }
       });
     }
@@ -800,7 +811,7 @@ function initUI() {
 var addedPlots = [];
 
 var container = document.querySelector('main > div.container');
-function addPlot(plot, source) {
+function addPlot(plot, source = []) {
   var d = document.createElement('div');
 
   source._enableUpdate = false;
@@ -812,6 +823,7 @@ function addPlot(plot, source) {
   var el = container.appendChild(d.firstElementChild)
     .querySelector('.plot-container');
   
+  source = Array.isArray(source) ? source : [source];
   addedPlots.push([el, source]);
 
 

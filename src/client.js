@@ -245,7 +245,7 @@ function initUI() {
     });
 
     var velocityTrajectorySource = new Bokeh.ColumnDataSource({
-      data: { timestamp: [], velocity_x: [], velocity_y: [], velocity_theta: [] }
+      data: { timestamp: [], x: [], y: [] } //theta: [] }
     });
 
     const xyLine = new Bokeh.Line({
@@ -354,7 +354,7 @@ function initUI() {
       }
     });
 
-    var accelerationScheme = colorBrewer.Spectral[4];
+    var accelerationScheme = colorBrewer.Spectral[5];
 
     velocityPlot.line({ field: 'timestamp' }, { field: 'x' }, {
       source: velocitySource,
@@ -376,6 +376,20 @@ function initUI() {
       legend_label: 'velocity_θ',
       line_width: 2,
       y_range_name: 'velocity_theta'
+    });
+
+    velocityPlot.line({ field: 'timestamp' }, { field: 'x' }, {
+      source: velocityTrajectorySource,
+      line_color: velocityScheme[3],
+      legend_label: 'trajectory_velocity_x',
+      line_width: 2
+    });
+
+    velocityPlot.line({ field: 'timestamp' }, { field: 'y' }, {
+      source: velocityTrajectorySource,
+      line_color: velocityScheme[4],
+      legend_label: 'trajectory_velocity_y',
+      line_width: 2
     });
 
     velocityPlot.add_layout(new Bokeh.LinearAxis({ y_range_name: 'velocity_theta', axis_label: 'velocity_θ (radian/sec)' }), 'left');
@@ -407,7 +421,7 @@ function initUI() {
     addPlot(positionPlot, positionSource);
     addPlot(xPositionPlot, [xSource, xTrajectorySource]);
     addPlot(yPositionPlot, [ySource, yTrajectorySource]);
-    addPlot(velocityPlot, velocitySource);
+    addPlot(velocityPlot, [velocitySource, velocityTrajectorySource]);
 
     addPlot(accelerationPlot, accelerationSource);
 
@@ -615,14 +629,33 @@ var bounds = new L.LatLngBounds(southWest, northEast);
     });
 
     remote.subscribe('rover_trajectory_sample', (key, sample) => {
+      var x = sample.trajectory.pose.translation.x;
+      var y = sample.trajectory.pose.translation.y;
+
       xTrajectorySource.data.timestamp.push(sample.timestamp);
-      xTrajectorySource.data.x.push(sample.trajectory.pose.translation.x);
+      xTrajectorySource.data.x.push(x);
 
       yTrajectorySource.data.timestamp.push(sample.timestamp);
-      yTrajectorySource.data.y.push(sample.trajectory.pose.translation.y);
+      yTrajectorySource.data.y.push(y);
 
       headingTrajectorySource.data.timestamp.push(sample.timestamp);
       headingTrajectorySource.data.theta.push(sample.trajectory.pose.rotation.radians);
+
+      var magnitude = Math.hypot(x, y);
+
+      var mSin = 0.0;
+      var mCos = 1.0;
+
+      if(magnitude > 1e-6) {
+        mCos = x / magnitude;
+        mSin = y / magnitude;
+      }
+      
+      velocityTrajectorySource.data.timestamp.push(sample.timestamp);
+      velocityTrajectorySource.data.x.push(sample.trajectory.velocity * mCos);
+      velocityTrajectorySource.data.y.push(sample.trajectory.velocity * mSin);
+
+
       console.log(sample);
     });
 

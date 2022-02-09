@@ -50,10 +50,21 @@
         justify-content: center;
       }
 
-     #heading-number {
+      #heading-number {
         position: absolute;
         bottom: -40px;
       }
+
+      .leaflet-grid-label .gridlabel-vert {
+        margin-left: 8px;
+        transform: rotate(90deg);
+      }
+
+      .leaflet-grid-label .gridlabel-vert,
+        .leaflet-grid-label .gridlabel-horiz {
+          padding-left:2px;
+          text-shadow: -2px 0 #FFFFFF, 0 2px #FFFFFF, 2px 0 #FFFFFF, 0 -2px #FFFFFF;
+        }
   </style>
   
   <body class="d-flex flex-column h-100">
@@ -96,6 +107,26 @@
         <div class="col-md-auto plot-container"></div>
         <div class="col col-lg-2"></div>
       </div>
+    </script>
+
+    <script type="text/html" id="scanPatternModal">
+      <div class="modal show modal-dialog-centered" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="exampleModalLabel">Scan Pattern</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              ...
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+              <button type="button" class="btn btn-primary">Save changes</button>
+            </div>
+          </div>
+        </div>
+      </div> 
     </script>
     
     <script src="vendor.js"></script>

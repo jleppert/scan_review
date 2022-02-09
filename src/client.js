@@ -10,7 +10,12 @@ var dnode         = require('dnode'),
     drawHeading   = require('./heading'),
     LowPassFilter = require('./control/LowPassFilter'),
     dat           = require('dat.gui'),
+    L             = require('leaflet'),
     qte           = require('quaternion-to-euler');
+
+
+global.L = L;
+require('./L.SimpleGraticule.js');
 
 var remote;
 var connectionManager = reconnect((stream) => {
@@ -234,6 +239,10 @@ function initUI() {
       data: { timestamp: [], y: [] }
     });
 
+    var headingTrajectorySource = new Bokeh.ColumnDataSource({
+      data: { timestamp: [], theta: [] }
+    });
+
     const xyLine = new Bokeh.Line({
       x: { field: "x" },
       y: { field: "y" },
@@ -281,13 +290,19 @@ function initUI() {
       line_width: 2
     });
 
-    yPositionPlot.line({ field: 'timestamp' }, { field: 'x', }, {
+    yPositionPlot.line({ field: 'timestamp' }, { field: 'y', }, {
       source: yTrajectorySource,
       line_color: "#43ac6a",
       line_width: 2,
       legend_label: 'Trajectory'
     });
 
+    headingPlot.line({ field: 'timestamp' }, { field: 'theta' }, {
+      source: headingTrajectorySource,
+      line_color: "#43ac6a",
+      legend_label: 'Trajectory',
+      line_width: 2
+    });
 
     var TAU = Math.PI * 2;
     var velocityPlot = new Bokeh.Plotting.figure({
@@ -342,7 +357,7 @@ function initUI() {
     addPlot(yPositionPlot, [ySource, yTrajectorySource]);
     addPlot(velocityPlot, velocitySource);
 
-    addPlot(headingPlot, headingSource);
+    addPlot(headingPlot, [headingSource, headingTrajectorySource]);
     
     function rad2Deg(rad) {
       return rad * 180 / Math.PI;
@@ -384,12 +399,71 @@ function initUI() {
       thetaControllerI: [0, 5, 0.001],
       thetaControllerD: [0, 5, 0.001],
     };
+
+    var scanPlanningParams = {
+      create: function() {
+        var d = document.createElement('div');
+
+        d.innerHTML = template('scanPatternModal', {});
+
+        var modal = document.body.appendChild(d.firstElementChild),
+            modalBody = modal.querySelector('.modal-body');
+      
+        modalBody.style.width = `${window.innerWidth / 2}px`;
+        modalBody.style.height = `${window.innerHeight / 2}px`;
+
+        var map = L.map(
+          modalBody,
+          {
+            center: [0, 0],
+            zoom: 0,
+            crs: L.Util.extend(L.CRS.Simple, {
+	            //transformation: new L.Transformation(-1,0,-1,0)
+            }) 
+          });
+
+        
+        L.marker([-10,-10]).addTo(map).bindPopup('y=0.1,x=0.1', {autoClose:false}).openPopup();
+        L.Control.Scale.include({
+  _updateMetric: function(maxMeters) {
+    var maxMilliMeters = maxMeters * 1000,
+      milliMeters = this._getRoundNum(maxMilliMeters),
+      label =
+        milliMeters < 1000 ? milliMeters + " mm" : milliMeters / 1000 + " m";
+
+    console.log(this._mScale, label, milliMeters / maxMilliMeters);
+
+    this._updateScale(this._mScale, label, milliMeters / maxMilliMeters);
+  }
+});
+        //L.control.scale().addTo(map);
+
+        window.map = map;
+
+        var southWest = L.CRS.Simple.unproject({x: -1, y: -1});
+var northEast = L.CRS.Simple.unproject({x: 1,y: 1});
+var bounds = new L.LatLngBounds(southWest, northEast); 
+
+        map.setMaxBounds(bounds);
+        map.fitBounds(bounds);
+        L.simpleGraticule({ 
+          interval: 0.2,
+          showOriginLabel: true, redraw: 'move' }).addTo(map);
+      }
+    };
     remote.getParameters(params => {
       console.log('current params', params);
       if(paramsGui) paramsGui.destory();
 
       paramsGui = new dat.gui.GUI({ width: 400 });
       paramsGui.domElement.parentElement.style.top = '110px';
+
+      var scanPlanning = paramsGui.addFolder('Scan Pattern');
+
+      scanPlanning.add(scanPlanningParams, 'create');
+
+      scanPlanning.open();
+
 
       var tuning = paramsGui.addFolder('Controls Tuning');
 
@@ -445,6 +519,10 @@ function initUI() {
 
       yTrajectorySource.data.timestamp.push(sample.timestamp);
       yTrajectorySource.data.y.push(sample.trajectory.pose.translation.y);
+
+      headingTrajectorySource.data.timestamp.push(sample.timestamp);
+      headingTrajectorySource.data.theta.push(sample.trajectory.pose.rotation);
+      console.log(sample);
     });
 
     remote.on('rover_pose', 100, (key, pose) => {

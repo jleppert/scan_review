@@ -14,8 +14,9 @@ var dnode         = require('dnode'),
     qte           = require('quaternion-to-euler');
 
 
-global.L = L;
+window.L = L;
 require('./L.SimpleGraticule.js');
+require('leaflet-draw');
 
 var remote;
 var connectionManager = reconnect((stream) => {
@@ -422,6 +423,53 @@ function initUI() {
             }) 
           });
 
+        var editableLayers = new L.FeatureGroup();
+        map.addLayer(editableLayers);
+
+        var drawControl = new L.Control.Draw({
+          position: 'topright',
+          draw: {
+            polygon: {
+              allowIntersection: false,
+              drawError: {
+                color: '#e1e100',
+                message: 'Invalid shape'
+              },
+              shapeOptions: {
+                color: '#bada55'
+              }
+            },
+            rectangle: {
+                shapeOptions: {
+                    clickable: false
+                }
+            },
+            polyline: {
+                shapeOptions: {
+                    color: '#f357a1',
+                    weight: 10
+                }
+            },
+            circle: false,
+            marker: false
+          },
+          edit: {
+            featureGroup: editableLayers,
+            remove: false
+          }
+        });
+
+        map.addControl(drawControl);
+        map.on(L.Draw.Event.CREATED, function (e) {
+          var type = e.layerType,
+              layer = e.layer;
+
+          if (type === 'marker') {
+              layer.bindPopup('A popup!');
+          }
+
+          editableLayers.addLayer(layer);
+        });
         
         L.marker([-10,-10]).addTo(map).bindPopup('y=0.1,x=0.1', {autoClose:false}).openPopup();
         L.Control.Scale.include({

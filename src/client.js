@@ -244,6 +244,10 @@ function initUI() {
       data: { timestamp: [], theta: [] }
     });
 
+    var velocityTrajectorySource = new Bokeh.ColumnDataSource({
+      data: { timestamp: [], velocity_x: [], velocity_y: [], velocity_theta: [] }
+    });
+
     const xyLine = new Bokeh.Line({
       x: { field: "x" },
       y: { field: "y" },
@@ -318,6 +322,18 @@ function initUI() {
       }
     });
 
+    var accelerationPlot = new Bokeh.Plotting.figure({
+      title: 'Acceleration Estimate',
+      y_range: new Bokeh.Range1d({ start: -0.5, end: 0.5 }),
+      width: initialWidth,
+      height: 400,
+      background_fill_color: '#F2F2F7',
+      tools: tools,
+      extra_y_ranges: {
+        acceleration_theta: new Bokeh.Range1d({ start: TAU * -1, end: TAU }),
+      }
+    });
+
     var velocitySource = new Bokeh.ColumnDataSource({
       data: {
         timestamp: [],
@@ -326,8 +342,19 @@ function initUI() {
         theta: []
       }
     });
-    
+
     var velocityScheme = colorBrewer.Spectral[4];
+
+    var accelerationSource = new Bokeh.ColumnDataSource({
+      data: {
+        timestamp: [],
+        x: [],
+        y: [],
+        theta: []
+      }
+    });
+
+    var accelerationScheme = colorBrewer.Spectral[4];
 
     velocityPlot.line({ field: 'timestamp' }, { field: 'x' }, {
       source: velocitySource,
@@ -353,10 +380,36 @@ function initUI() {
 
     velocityPlot.add_layout(new Bokeh.LinearAxis({ y_range_name: 'velocity_theta', axis_label: 'velocity_θ (radian/sec)' }), 'left');
 
+    accelerationPlot.line({ field: 'timestamp' }, { field: 'x' }, {
+      source: accelerationSource,
+      line_color: accelerationScheme[0],
+      legend_label: 'accel_x',
+      line_width: 2
+    });
+
+    accelerationPlot.line({ field: 'timestamp' }, { field: 'y' }, {
+      source: accelerationSource,
+      line_color: accelerationScheme[1],
+      legend_label: 'accel_y',
+      line_width: 2
+    });
+
+    accelerationPlot.line({ field: 'timestamp' }, { field: 'theta' }, {
+      source: accelerationSource,
+      line_color: accelerationScheme[2],
+      legend_label: 'accel_θ',
+      line_width: 2,
+      y_range_name: 'acceleration_theta'
+    });
+
+    accelerationPlot.add_layout(new Bokeh.LinearAxis({ y_range_name: 'acceleration_theta', axis_label: 'accel_θ (radian/sec)' }), 'left');
+
     addPlot(positionPlot, positionSource);
     addPlot(xPositionPlot, [xSource, xTrajectorySource]);
     addPlot(yPositionPlot, [ySource, yTrajectorySource]);
     addPlot(velocityPlot, velocitySource);
+
+    addPlot(accelerationPlot, accelerationSource);
 
     addPlot(headingPlot, [headingSource, headingTrajectorySource]);
     
@@ -569,7 +622,7 @@ var bounds = new L.LatLngBounds(southWest, northEast);
       yTrajectorySource.data.y.push(sample.trajectory.pose.translation.y);
 
       headingTrajectorySource.data.timestamp.push(sample.timestamp);
-      headingTrajectorySource.data.theta.push(sample.trajectory.pose.rotation);
+      headingTrajectorySource.data.theta.push(sample.trajectory.pose.rotation.radians);
       console.log(sample);
     });
 
@@ -604,13 +657,25 @@ var bounds = new L.LatLngBounds(southWest, northEast);
       //renderer.render(scene, camera);
     });
 
-    var filter = new LowPassFilter(0.5);
+    var filter = new LowPassFilter(0.5), lastVelocity;
     remote.on('rover_pose_velocity', 100, (key, velocity) => {
+      if(!lastVelocity) lastVelocity = velocity;
+
       velocitySource.data.timestamp.push(velocity.timestamp);
       velocitySource.data.x.push(velocity.pos[0] * -1);
+
       velocitySource.data.y.push(velocity.pos[1] * -1);
 
       velocitySource.data.theta.push(filter.estimate(velocity.theta[2] * -1));
+
+      var dt = velocity.timestamp - lastVelocity.timestamp;
+
+      if(dt > 0) {
+        accelerationSource.data.timestamp.push(velocity.timestamp);
+        accelerationSource.data.x.push(((velocity.pos[0] - lastVelocity.pos[0]) / dt) * -1 );
+        accelerationSource.data.y.push(((velocity.pos[1] - lastVelocity.pos[1]) / dt) * -1 );
+        accelerationSource.data.theta.push(((filter.estimate(velocity.theta[2]) - filter.estimate(lastVelocity.theta[2])) / dt) * -1 );
+      }
 
       //velocitySource.change.emit();
     });

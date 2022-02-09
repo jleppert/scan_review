@@ -20,7 +20,9 @@ app.use('/client.js', browserify(path.join(__dirname, 'src', 'client.js')));
 var styles = [
   path.join(__dirname, 'node_modules', 'toastify-js', 'src', 'toastify.css'),
   path.join(__dirname, 'node_modules', 'nprogress', 'nprogress.css'),
-  path.join(__dirname, 'node_modules', 'bootstrap', 'dist', 'css', 'bootstrap.css')
+  path.join(__dirname, 'node_modules', 'bootstrap', 'dist', 'css', 'bootstrap.css'),
+  path.join(__dirname, 'node_modules', 'leaflet', 'dist', 'leaflet.css'),
+  path.join(__dirname, 'node_modules', 'leaflet-draw', 'dist', 'leaflet.draw.css'),
 ];
 
 app.use('/style.css', (req, res) => {

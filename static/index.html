@@ -31,6 +31,10 @@
       margin-top: 56px;
      }
 
+     li.cr.function { text-align: center; }
+     li.cr.function span.property-name { width: 100%; }
+     div.c select { width: 100% }
+
      .rover-visual {
         position: fixed;
         top: 100px;
@@ -101,7 +105,7 @@
       </div>
     </footer>
 
-    <script type="text/html" id="plot">
+    <script type="text/html" id="plotTpl">
       <div class="row justify-content-md-center">
         <div class="col col-lg-2"></div>
         <div class="col-md-auto plot-container"></div>
@@ -109,20 +113,21 @@
       </div>
     </script>
 
-    <script type="text/html" id="scanPatternModal">
-      <div class="modal show modal-dialog-centered" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+    <script type="text/html" id="scanPatternModalTpl">
+      <div class="modal show modal-dialog-centered" id="scanPatternModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-xl">
           <div class="modal-content">
             <div class="modal-header">
               <h5 class="modal-title" id="exampleModalLabel">Scan Pattern</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              <button type="button" class="btn-close close-modal" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
               ...
             </div>
             <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-              <button type="button" class="btn btn-primary">Save changes</button>
+              <input type="text" id="patternName" class="form-control" placeholder="Pattern Name"> 
+              <button type="button" class="btn btn-secondary close-modal" data-bs-dismiss="modal">Close</button>
+              <button type="button" id="savePattern" class="btn btn-primary">Save Pattern</button>
             </div>
           </div>
         </div>

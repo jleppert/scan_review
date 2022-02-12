@@ -469,16 +469,79 @@ function initUI() {
     };
 
     var scanPlanningParams = {
-      create: function() {
+      selectedPattern: null,
+      
+      patterns: [],
+      createNewPattern: function() {
+        scanPlanningParams.selectedPattern = null;
+        scanPlanning.onSelectedPattern();
+        scanPlanningParams.createOrEdit();
+      },
+
+      createOrEdit: function() {
         var d = document.createElement('div');
 
-        d.innerHTML = template('scanPatternModal', {});
+        d.innerHTML = template('scanPatternModalTpl', {});
 
         var modal = document.body.appendChild(d.firstElementChild),
-            modalBody = modal.querySelector('.modal-body');
+            modalBody = modal.querySelector('.modal-body'),
+            modalEl = document.getElementById('scanPatternModal');
       
+        var trajectory = {
+          waypoints: [],
+          maxAcceleration: 0.3,
+          maxVelocity: 0.3
+        };
+
+        var pattern = {
+          name: '',
+          createdAt: null,
+          updatedAt: null,
+          trajectory: trajectory,
+          geojson: {}
+        };
+
         modalBody.style.width = `${window.innerWidth / 2}px`;
         modalBody.style.height = `${window.innerHeight / 2}px`;
+
+        function closeModal() {
+          if(map) map.remove();
+          if(modalEl) modalEl.remove();  
+        }
+
+        modalEl.querySelectorAll('.close-modal').forEach(el => {
+          el.addEventListener('click', closeModal);
+        });
+
+        modalEl.querySelector('#savePattern').addEventListener('click', () => {
+          var name = modalEl.querySelector('#patternName').value;
+
+          if(!name.length) {
+            alert('Scan pattern name is required');
+            return;
+          }
+          
+          if(pattern.createdAt) {
+            pattern.updatedAt = (new Date).getTime();
+          } else {
+            pattern.createdAt = (new Date).getTime();
+            pattern.updatedAt = (new Date).getTime();
+          }
+
+          pattern.name = name;
+
+          var i = scanPlanningParams.patterns.findIndex(p => p.name === name);
+          if(i === -1) {
+            scanPlanningParams.patterns.unshift(pattern);
+          } else {
+            scanPlanningParams.patterns[i] = pattern;
+          }
+
+          remote.set('rover_scan_patterns', JSON.stringify(scanPlanningParams.patterns), () => {
+            scanPlanningParams.selectedPattern = pattern.name;
+            initScanPatternUI();
+          });
+        });
 
         var map = L.map(
           modalBody,
@@ -490,7 +553,16 @@ function initUI() {
             }) 
           });
 
-        var editableLayers = new L.FeatureGroup();
+        var editableLayers;
+        if(scanPlanningParams.selectedPattern) {
+          var selectedPattern = scanPlanningParams.patterns.find(p => p.name === scanPlanningParams.selectedPattern);
+
+          if(selectedPattern) editableLayers = L.geoJSON(selectedPattern.geojson);
+          modalEl.querySelector('#patternName').value = selectedPattern.name;
+        } else {
+          editableLayers = new L.FeatureGroup();
+        }
+
         map.addLayer(editableLayers);
 
         var drawControl = new L.Control.Draw({
@@ -526,59 +598,97 @@ function initUI() {
           }
         });
 
+        /*
+waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":-0.007506866651380187,"y":-0.038567795113493814}}
+waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":0.3,"y":0.0}}
+waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":0.3,"y":0.3}}
+waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":0.0,"y":0.0}}
+waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":-0.3,"y":0.0}}
+waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":-0.3,"y":-0.3}}
+        */
+
         map.addControl(drawControl);
         map.on(L.Draw.Event.CREATED, function (e) {
           var type = e.layerType,
               layer = e.layer;
 
-          if (type === 'marker') {
-              layer.bindPopup('A popup!');
+          if (type === 'polyline') {
+            layer.getLatLngs().forEach(point => {
+              pattern.trajectory.waypoints.push({
+                rotation: { radians: 0 },
+                translation: { x: point.lng, y: point.lat }
+              });
+            });
           }
 
+          pattern.geojson = layer.toGeoJSON();
+          
           editableLayers.addLayer(layer);
+          
+          //remote.publish('rover_trajectory', JSON.stringify(trajectory));
+        });
+
+        map.on(L.Draw.Event.EDITED, function(e) {
+          pattern.trajectory.waypoints = [];
+
+          e.layers.eachLayer((layer) => {
+            var type = layer.layerType;
+
+            if (type === 'polyline') {
+              layer.getLatLngs().forEach(point => {
+                pattern.trajectory.waypoints.push({
+                  rotation: { radians: 0 },
+                  translation: { x: point.lng, y: point.lat }
+                });
+              });
+            }
+
+            pattern.geojson = layer.toGeoJSON();
+          });
+
         });
         
-        L.marker([-10,-10]).addTo(map).bindPopup('y=0.1,x=0.1', {autoClose:false}).openPopup();
+        //L.marker([-10,-10]).addTo(map).bindPopup('y=0.1,x=0.1', {autoClose:false}).openPopup();
         L.Control.Scale.include({
-  _updateMetric: function(maxMeters) {
-    var maxMilliMeters = maxMeters * 1000,
-      milliMeters = this._getRoundNum(maxMilliMeters),
-      label =
-        milliMeters < 1000 ? milliMeters + " mm" : milliMeters / 1000 + " m";
+          _updateMetric: function(maxMeters) {
+            var maxMilliMeters = maxMeters * 1000,
+                milliMeters = this._getRoundNum(maxMilliMeters),
+                label = milliMeters < 1000 ? milliMeters + " mm" : milliMeters / 1000 + " m";
 
-    console.log(this._mScale, label, milliMeters / maxMilliMeters);
+            console.log(this._mScale, label, milliMeters / maxMilliMeters);
 
-    this._updateScale(this._mScale, label, milliMeters / maxMilliMeters);
-  }
-});
+            this._updateScale(this._mScale, label, milliMeters / maxMilliMeters);
+          }
+        });
+
         //L.control.scale().addTo(map);
 
         window.map = map;
 
         var southWest = L.CRS.Simple.unproject({x: -1, y: -1});
-var northEast = L.CRS.Simple.unproject({x: 1,y: 1});
-var bounds = new L.LatLngBounds(southWest, northEast); 
+        var northEast = L.CRS.Simple.unproject({x: 1,y: 1});
+        var bounds = new L.LatLngBounds(southWest, northEast); 
 
         map.setMaxBounds(bounds);
         map.fitBounds(bounds);
         L.simpleGraticule({ 
           interval: 0.2,
           showOriginLabel: true, redraw: 'move' }).addTo(map);
+      },
+      generateTrajectory: function() {
+
+      },
+      run: function() {
+
       }
     };
+    
     remote.getParameters(params => {
       console.log('current params', params);
       if(paramsGui) paramsGui.destory();
 
       paramsGui = new dat.gui.GUI({ width: 400 });
       paramsGui.domElement.parentElement.style.top = '110px';
-
-      var scanPlanning = paramsGui.addFolder('Scan Pattern');
-
-      scanPlanning.add(scanPlanningParams, 'create');
-
-      scanPlanning.open();
-
 
       var tuning = paramsGui.addFolder('Controls Tuning');
 
@@ -601,8 +711,57 @@ var bounds = new L.LatLngBounds(southWest, northEast);
 
       tuning.open();
 
-      //debugger;
+      initScanPatternUI();
     });
+
+    var scanPlanning;
+    function initScanPatternUI() {
+      remote.get('rover_scan_patterns', (patterns) => {
+        if(scanPlanning) paramsGui.removeFolder(scanPlanning);
+
+        scanPlanning = paramsGui.addFolder('Scan Pattern');
+        scanPlanning.add(scanPlanningParams, 'createNewPattern').name('Create New Pattern');
+        
+        var selectedPatternName;
+        if(patterns) {
+          try {
+            patterns = JSON.parse(patterns);
+          } catch(e) {
+            console.log('Exception parsing rover_scan_patterns', e.toString());
+          }
+
+          patterns = patterns.sort((a, b) => {
+            return b.createdAt - a.createdAt;
+          });
+
+          scanPlanningParams.patterns = patterns || [];
+          selectedPatternName = scanPlanning.add(scanPlanningParams, 'selectedPattern', patterns.map(p => p.name)).name('Selected Pattern')
+            .onFinishChange(() => {
+              scanPlanning.onSelectedPattern();
+            });
+        }
+
+        patterns = patterns || [];
+
+        var createOrEdit, generateTrajectory, runPattern;
+        scanPlanning.onSelectedPattern = function() {
+          if(createOrEdit) createOrEdit.remove();
+          if(generateTrajectory) generateTrajectory.remove();
+          if(runPattern) runPattern.remove();
+
+          if(patterns.find(p => p.name === scanPlanningParams.selectedPattern)) {
+            createOrEdit = scanPlanning.add(scanPlanningParams, 'createOrEdit').name('Edit Pattern');
+            generateTrajectory = scanPlanning.add(scanPlanningParams, 'generateTrajectory').name('Generate Trajectory Path');
+            runPattern = scanPlanning.add(scanPlanningParams, 'run').name('Run Pattern');
+          }
+
+          selectedPatternName.updateDisplay();
+        }
+        scanPlanning.onSelectedPattern();
+
+        scanPlanning.open();
+      });
+    }
 
     remote.subscribe('rover_trajectory_profile', (key, trajectories) => {
       trajectories.forEach(trajectory => {
@@ -659,6 +818,7 @@ var bounds = new L.LatLngBounds(southWest, northEast);
       console.log(sample);
     });
 
+    var currentPoseArrow;
     remote.on('rover_pose', 100, (key, pose) => {
       positionSource.data.timestamp.push(pose.timestamp);
       positionSource.data.x.push(pose.pos[0] * -1);
@@ -673,6 +833,30 @@ var bounds = new L.LatLngBounds(southWest, northEast);
       var euler = qte(pose.rot);
       headingSource.data.theta.push(euler[2]);
       headingSource.data.timestamp.push(pose.timestamp);
+
+      if(!currentPoseArrow) {
+        currentPoseArrow = new Bokeh.Arrow(
+          { end: new Bokeh.VeeHead({ fill_color: '#f9e816', size: 20, fill_alpha: 0.4 }), 
+              x_start: 0,
+              y_start: 0,
+              x_end: 0,
+              y_end: 0
+        });
+
+        window.currentPoseArrow = currentPoseArrow;
+
+        positionPlot.add_layout(currentPoseArrow);
+
+      } else {
+        currentPoseArrow.properties.x_start.set_value(pose.pos[0] * -1);
+        currentPoseArrow.properties.y_start.set_value(pose.pos[1] * -1);
+  
+        currentPoseArrow.properties.x_end.set_value(((Math.cos(euler[2] + Math.PI) * 0.0001) + pose.pos[0]) * -1 );
+        currentPoseArrow.properties.y_end.set_value(((Math.sin(euler[2] + Math.PI) * 0.0001) +  pose.pos[1]) * -1 );
+
+        currentPoseArrow.change.emit();
+
+      }
 
       /*headingSource.change.emit();
 
@@ -1043,7 +1227,7 @@ function addPlot(plot, source = []) {
 
   source._enableUpdate = false;
  
-  d.innerHTML = template('plot', {});
+  d.innerHTML = template('plotTpl', {});
 
   Bokeh.Plotting.show(plot, d.querySelector('.plot-container'));
 

@@ -40,6 +40,8 @@ var libraries = [
   path.join(__dirname, 'node_modules', 'bootstrap', 'dist', 'js', 'bootstrap.js'),
 ];
 
+app.use(express.static(path.join(__dirname, 'node_modules', 'leaflet', 'dist')));
+app.use(express.static(path.join(__dirname, 'node_modules', 'leaflet-draw', 'dist')));
 app.use(express.static(path.join(__dirname, 'lib', 'bokeh', 'bokehjs', 'build', 'js')));
 
 app.use('/vendor.js', (req, res) => {
@@ -77,6 +79,15 @@ var unpack = unpacker.unpack,
 var trackerConfigPath = path.join(require('os').homedir(), '.config', 'libsurvive', 'config.json'); 
 
 var logs = {};
+
+function toArrayBuffer(buf) {
+    const ab = new ArrayBuffer(buf.length);
+    const view = new Uint8Array(ab);
+    for (let i = 0; i < buf.length; ++i) {
+        view[i] = buf[i];
+    }
+    return ab;
+}
 
 var sock = shoe(function(stream) {
   var remote;
@@ -122,6 +133,21 @@ var sock = shoe(function(stream) {
       if(id) clearInterval(id);
 
       delete remote.timers[`${key}_${rateInMs}`];
+    },
+
+    get: async function(key, cb = function() {}) {
+      var val = (await redisClient.getBuffer(Buffer.from(key)));
+
+      if(val) return cb(val.toString());
+      cb();
+    },
+
+    set: async function(key, value, cb = function() {}) {
+      cb(await redisClient.set(Buffer.from(key), value));
+    },
+
+    publish: async function(key, value) {
+      await redisClient.publish(Buffer.from(key), value);
     },
 
     subscribe: async function(key, cb = function() {}) {

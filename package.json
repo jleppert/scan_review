@@ -10,6 +10,9 @@
   "license": "ISC",
   "dependencies": {
     "@bokeh/bokehjs": "^2.4.2",
+    "@thi.ng/grid-iterators": "^2.2.5",
+    "@turf/turf": "^6.5.0",
+    "babelify": "^10.0.0",
     "bootstrap": "^5.1.3",
     "browserify-middleware": "^8.1.1",
     "bufferutil": "^4.0.5",
@@ -17,6 +20,7 @@
     "dat.gui": "^0.7.7",
     "dnode": "git+ssh://git@github.com/Inspectobot/dnode.git",
     "express": "^4.17.2",
+    "hilbert-curve": "^2.0.5",
     "leaflet": "^1.7.1",
     "leaflet-draw": "^1.0.4",
     "mecanum": "^1.0.6",
@@ -36,5 +40,13 @@
     "toastify-js": "^1.11.2",
     "uuid": "^8.3.2",
     "ws": "^8.4.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.17.2",
+    "@babel/preset-env": "^7.16.11",
+    "@babel/preset-es2015": "^7.0.0-beta.53",
+    "babel-loader": "^8.2.3",
+    "babel-preset-es2015": "^6.24.1",
+    "regenerator-runtime": "^0.13.9"
   }
 }

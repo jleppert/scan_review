@@ -17,7 +17,7 @@ module.exports = function(svg) {
   drawCenterLine(150, 100, 150, 200);
   drawCenterLine(100, 150, 200, 150);
 
-
+  var w = 0, y2 = 0;
   for (var i = 0; i < 360; i += 2) {
     var s = "grey";
     if (i == 0 || i % 30 == 0) {

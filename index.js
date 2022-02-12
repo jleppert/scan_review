@@ -12,10 +12,25 @@ var fs            = require('fs'),
     msgpack       = require('msgpackr'),
     microtime     = require('microtime'),
     EventEmitter  = require('events'),
+    babelify      = require('babelify'),
     browserify    = require('browserify-middleware');
 
 var app = express();
-app.use('/client.js', browserify(path.join(__dirname, 'src', 'client.js')));
+
+console.log('Building frontend code...');
+app.use('/client.js', 
+  browserify(
+    path.join(__dirname, 'src', 'client.js'), {
+      transform: [
+        [babelify, {
+          global: true,
+          ignore: [/\/node_modules\/(?!\@thi.ng\/)/],
+          presets: ['@babel/preset-env']
+        }]
+      ]
+    }, {
+      precompile: true
+    }));
 
 var styles = [
   path.join(__dirname, 'node_modules', 'toastify-js', 'src', 'toastify.css'),

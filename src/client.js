@@ -1,3 +1,4 @@
+require('regenerator-runtime/runtime');
 var dnode         = require('dnode'),
     shoe          = require('shoe'),
     reconnect     = require('reconnect/shoe'),
@@ -11,8 +12,9 @@ var dnode         = require('dnode'),
     LowPassFilter = require('./control/LowPassFilter'),
     dat           = require('dat.gui'),
     L             = require('leaflet'),
+    turf          = require('@turf/turf'),
+    gi            = require('@thi.ng/grid-iterators'),
     qte           = require('quaternion-to-euler');
-
 
 window.L = L;
 require('./L.SimpleGraticule.js');
@@ -204,31 +206,31 @@ function initUI() {
     });
 
 
-    xAxis = new Bokeh.LinearAxis({ axis_line_color: null });
-    yAxis = new Bokeh.LinearAxis({ axis_line_color: null });
+    var xAxis = new Bokeh.LinearAxis({ axis_line_color: null });
+    var yAxis = new Bokeh.LinearAxis({ axis_line_color: null });
 
     positionPlot.add_layout(xAxis, 'below');
     positionPlot.add_layout(yAxis, 'left');
 
-    xGrid = new Bokeh.Grid({ ticker: xAxis.ticker, dimension: 0 });
-    yGrid = new Bokeh.Grid({ ticker: yAxis.ticker, dimension: 1 });
+    var xGrid = new Bokeh.Grid({ ticker: xAxis.ticker, dimension: 0 });
+    var yGrid = new Bokeh.Grid({ ticker: yAxis.ticker, dimension: 1 });
    
     positionPlot.add_layout(xGrid);
     positionPlot.add_layout(yGrid);
 
-    positionSource = new Bokeh.ColumnDataSource({
+    var positionSource = new Bokeh.ColumnDataSource({
       data: { timestamp: [], x: [], y: [] }
     });
 
-    trajectorySource = new Bokeh.ColumnDataSource({
+    var trajectorySource = new Bokeh.ColumnDataSource({
       data: { timestamp: [], x: [], y: [] }
     });
 
-    xSource = new Bokeh.ColumnDataSource({
+    var xSource = new Bokeh.ColumnDataSource({
       data: { timestamp: [], x: [] }
     });
 
-    ySource = new Bokeh.ColumnDataSource({
+    var ySource = new Bokeh.ColumnDataSource({
       data: { timestamp: [], y: [] }
     });
 
@@ -612,6 +614,8 @@ waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":-0.3,
           var type = e.layerType,
               layer = e.layer;
 
+          debugger;
+
           if (type === 'polyline') {
             layer.getLatLngs().forEach(point => {
               pattern.trajectory.waypoints.push({
@@ -619,6 +623,73 @@ waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":-0.3,
                 translation: { x: point.lng, y: point.lat }
               });
             });
+          } else if(type === 'rectangle') {
+            var extent = layer.getBounds().toBBoxString().split(',');
+
+            var minX = parseFloat(extent[1]),
+                minY = parseFloat(extent[0]),
+                maxX = parseFloat(extent[3]),
+                maxY = parseFloat(extent[2]);
+
+            var xSize = Math.abs(maxX - minX),
+                ySize = Math.abs(maxY - minY),
+                stepSize = 0.1,
+                stepInX = Math.ceil(xSize / stepSize),
+                stepInY = Math.ceil(ySize / stepSize);
+            
+            var points = [];
+            Array.from(gi.zigzagRows2d(stepInX, stepInY)).forEach((point, i) => {
+              
+              points.push(
+                [
+                  minX + ((point[0] / stepInX) * xSize),
+                  minY + ((point[1] / stepInY) * ySize)
+                ]
+              );
+
+            });
+
+            /*var points = [];
+
+            var currentCoord = [minX, minY];
+
+
+            for(var x = 0; x < stepInX; x++) {
+              for(var y = 0; y < stepInY; y++) {
+                if(y === (stepInY - 1) && (x % 2 === 0)) {
+                  points.push([minX + ((x * stepSize) + stepSize), (minY + (stepInY * stepSize)) - stepSize]);
+                }
+
+                if(y === 0 && (x % 2 === 1)) {
+                  points.push([minX + ((x * stepSize)) + stepSize, minY]);
+                }
+
+                if(x % 2 === 1) {
+                  points.push([minX + (x * stepSize), minY + (y * stepSize) - stepSize]);
+                }
+                if(x % 2 === 0) {
+                  points.push([minX + (x * stepSize), minY + (y * stepSize) + stepSize]);
+                }
+
+                if(y === (stepInY - 1)) {
+                  points.push([minX + (x * stepSize) + stepSize, minY]);
+                }
+                //points.push([minY + (y * stepSize), minX + (x * stepSize)]);
+              }
+            }*/
+
+            var scanLayer = L.polyline(points, { color: 'red' });
+            scanLayer.addTo(map);
+
+            /*var data = Array.from({ length: stepInX * stepInY }, (_, i) => i * stepSize);
+            hilbert.construct(data, 2);
+
+            var pts = [];
+            for(var i = 0; i < (stepInX * stepInY); i++) {
+              pts.push(hilbert.
+            }
+
+            debugger;*/
           }
 
           pattern.geojson = layer.toGeoJSON();
@@ -745,9 +816,18 @@ waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":-0.3,
 
         var createOrEdit, generateTrajectory, runPattern;
         scanPlanning.onSelectedPattern = function() {
-          if(createOrEdit) createOrEdit.remove();
-          if(generateTrajectory) generateTrajectory.remove();
-          if(runPattern) runPattern.remove();
+          if(createOrEdit) {
+            createOrEdit.remove();
+            createOrEdit = null;
+          }
+          if(generateTrajectory) {
+             generateTrajectory.remove();
+             generateTrajectory = null;
+          }
+          if(runPattern) {
+            runPattern.remove();
+            runPattern = null;
+          }
 
           if(patterns.find(p => p.name === scanPlanningParams.selectedPattern)) {
             createOrEdit = scanPlanning.add(scanPlanningParams, 'createOrEdit').name('Edit Pattern');

@@ -14,10 +14,12 @@ var dnode         = require('dnode'),
     L             = require('leaflet'),
     turf          = require('@turf/turf'),
     gi            = require('@thi.ng/grid-iterators'),
+    poseIcon      = require('./poseIcon'),
     qte           = require('quaternion-to-euler');
 
 window.L = L;
 require('./L.SimpleGraticule.js');
+require('leaflet-rotatedmarker');
 require('leaflet-draw');
 
 var remote;
@@ -98,9 +100,8 @@ var currentTrackerConfig;
 function initUI() {
   console.log('init ui');
 
-  var positionPlot, positionSource, xRange, yRange, xAxis, yAxis, xGrid, yGrid;
-  
-  var tools = ['pan', 'crosshair', 'wheel_zoom', 'box_zoom', 'reset', 'save'];
+  var currentRoverPoseMapMarker,
+      tools = ['pan', 'crosshair', 'wheel_zoom', 'box_zoom', 'reset', 'save'];
   remote.getBaseStationConfig(config => {
 
     var scene = new THREE.Scene(),
@@ -145,10 +146,10 @@ function initUI() {
 
     var dim = 1.397 / 2;
 
-    xRange = new Bokeh.Range1d({ start: dim * -1, end: dim });
-    yRange = new Bokeh.Range1d({ start: dim * -1, end: dim });
+    var xRange = new Bokeh.Range1d({ start: dim * -1, end: dim });
+    var yRange = new Bokeh.Range1d({ start: dim * -1, end: dim });
 
-    positionPlot = new Bokeh.Plot({
+    var positionPlot = new Bokeh.Plot({
       title: 'Estimated Position Path & Trajectory Plan',
       x_range: xRange,
       y_range: yRange,
@@ -508,7 +509,10 @@ function initUI() {
 
         function closeModal() {
           if(map) map.remove();
-          if(modalEl) modalEl.remove();  
+          if(modalEl) modalEl.remove();
+
+          map = null;
+          currentRoverPoseMapMarker = null;
         }
 
         modalEl.querySelectorAll('.close-modal').forEach(el => {
@@ -564,6 +568,20 @@ function initUI() {
         } else {
           editableLayers = new L.FeatureGroup();
         }
+
+        var roverPoseMarker = L.divIcon({
+          html: poseIcon,
+          className: 'rover-pose-map-icon',
+          iconSize: [40, 48],
+          iconAnchor: [20, 24]
+        });
+
+        currentRoverPoseMapMarker = L.marker([0, 0], { 
+          icon: roverPoseMarker,
+          rotationOrigin: 'center center',
+          rotationAngle: 45
+        }).addTo(map);
+        window.currentRoverPoseMarker = currentRoverPoseMapMarker;
 
         map.addLayer(editableLayers);
 
@@ -893,9 +911,6 @@ waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":-0.3,
       velocityTrajectorySource.data.timestamp.push(sample.timestamp);
       velocityTrajectorySource.data.x.push(sample.trajectory.velocity * mCos);
       velocityTrajectorySource.data.y.push(sample.trajectory.velocity * mSin);
-
-
-      console.log(sample);
     });
 
     var currentPoseArrow;
@@ -938,20 +953,17 @@ waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":-0.3,
 
       }
 
-      /*headingSource.change.emit();
-
-      positionSource.change.emit();
-      xSource.change.emit();
-      ySource.change.emit();*/
-      
-      if(!roverMesh) return;
-
       headingNumberDegree.innerText = rad2Deg(convertAngle(euler[2])).toFixed(2) + '°';
       headingNumberRadian.innerText = euler[2].toFixed(2);
 
+      if(!roverMesh) return;
       roverMesh.rotation.z = euler[2];
 
-      //renderer.render(scene, camera);
+      if(currentRoverPoseMapMarker) {
+        currentRoverPoseMapMarker.setLatLng([pose.pos[1] * -1, pose.pos[0] * -1]);
+        currentRoverPoseMapMarker.setRotationAngle(rad2Deg((Math.PI / 2) - euler[2]));
+      }
+
     });
 
     var filter = new LowPassFilter(0.5), lastVelocity;

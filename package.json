@@ -21,6 +21,7 @@
     "deep-extend": "^0.6.0",
     "dnode": "git+ssh://git@github.com/Inspectobot/dnode.git",
     "express": "^4.17.2",
+    "greiner-hormann": "^1.4.2",
     "hilbert-curve": "^2.0.5",
     "leaflet": "^1.7.1",
     "leaflet-draw": "^1.0.4",

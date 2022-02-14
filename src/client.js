@@ -1,22 +1,23 @@
 require('regenerator-runtime/runtime');
-var dnode         = require('dnode'),
-    shoe          = require('shoe'),
-    reconnect     = require('reconnect/shoe'),
-    progressBar   = require('nprogress'),
-    notify        = require('toastify-js'),
-    template      = require('resig'),
-    colorBrewer   = require('colorbrewer'),
-    THREE         = require('three'),
-    STLLoader     = require('three-stl-loader')(THREE),
-    drawHeading   = require('./heading'),
-    LowPassFilter = require('./control/LowPassFilter'),
-    dat           = require('dat.gui'),
-    L             = require('leaflet'),
-    turf          = require('@turf/turf'),
-    gi            = require('@thi.ng/grid-iterators'),
-    poseIcon      = require('./poseIcon'),
-    extend        = require('deep-extend'),
-    qte           = require('quaternion-to-euler');
+var dnode           = require('dnode'),
+    shoe            = require('shoe'),
+    reconnect       = require('reconnect/shoe'),
+    progressBar     = require('nprogress'),
+    notify          = require('toastify-js'),
+    template        = require('resig'),
+    colorBrewer     = require('colorbrewer'),
+    THREE           = require('three'),
+    STLLoader       = require('three-stl-loader')(THREE),
+    drawHeading     = require('./heading'),
+    LowPassFilter   = require('./control/LowPassFilter'),
+    dat             = require('dat.gui'),
+    L               = require('leaflet'),
+    turf            = require('@turf/turf'),
+    gi              = require('@thi.ng/grid-iterators'),
+    poseIcon        = require('./poseIcon'),
+    extend          = require('deep-extend'),
+    greinerHormann  = require('greiner-hormann'),
+    qte             = require('quaternion-to-euler');
 
 window.L = L;
 require('./L.SimpleGraticule.js');
@@ -714,7 +715,7 @@ waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":-0.3,
                 translation: { x: point.lng, y: point.lat }
               });
             });
-          } else if(type === 'rectangle') {
+          } else if(type === 'rectangle' || 'polygon') {
             var extent = layer.getBounds().toBBoxString().split(',');
 
             var minX = parseFloat(extent[1]),
@@ -740,47 +741,19 @@ waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":-0.3,
 
             });
 
-            /*var points = [];
-
-            var currentCoord = [minX, minY];
-
-
-            for(var x = 0; x < stepInX; x++) {
-              for(var y = 0; y < stepInY; y++) {
-                if(y === (stepInY - 1) && (x % 2 === 0)) {
-                  points.push([minX + ((x * stepSize) + stepSize), (minY + (stepInY * stepSize)) - stepSize]);
-                }
-
-                if(y === 0 && (x % 2 === 1)) {
-                  points.push([minX + ((x * stepSize)) + stepSize, minY]);
-                }
-
-                if(x % 2 === 1) {
-                  points.push([minX + (x * stepSize), minY + (y * stepSize) - stepSize]);
-                }
-                if(x % 2 === 0) {
-                  points.push([minX + (x * stepSize), minY + (y * stepSize) + stepSize]);
-                }
-
-                if(y === (stepInY - 1)) {
-                  points.push([minX + (x * stepSize) + stepSize, minY]);
-                }
-                //points.push([minY + (y * stepSize), minX + (x * stepSize)]);
-              }
-            }*/
-
             var scanLayer = L.polyline(points, { color: 'red' });
-            scanLayer.addTo(map);
+            if(type === 'polygon') {
+              // TODO: joins, hole support
 
-            /*var data = Array.from({ length: stepInX * stepInY }, (_, i) => i * stepSize);
-            hilbert.construct(data, 2);
-
-            var pts = [];
-            for(var i = 0; i < (stepInX * stepInY); i++) {
-              pts.push(hilbert.
+              scanLayer.setLatLngs(greinerHormann.intersection(
+                scanLayer.getLatLngs().map(l => [l.lng, l.lat]),
+                layer.getLatLngs().pop().map(l => [l.lng, l.lat])
+              ).map(s => {
+                return s.map(p => [p[1], p[0]]);
+              }));
             }
 
-            debugger;*/
+            scanLayer.addTo(map);
           }
 
           pattern.geojson = layer.toGeoJSON();

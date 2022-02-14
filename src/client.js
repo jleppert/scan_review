@@ -15,6 +15,7 @@ var dnode         = require('dnode'),
     turf          = require('@turf/turf'),
     gi            = require('@thi.ng/grid-iterators'),
     poseIcon      = require('./poseIcon'),
+    extend        = require('deep-extend'),
     qte           = require('quaternion-to-euler');
 
 window.L = L;
@@ -585,10 +586,79 @@ function initUI() {
 
         map.addLayer(editableLayers);
 
+        L.drawLocal = extend(L.drawLocal, {
+          draw: {
+            toolbar: {
+              buttons: {
+                polyline: 'Draw a line scan',
+                polygon: 'Draw a polygon scan area',
+                rectangle: 'Draw a rectangular scan area'
+              }
+            },
+            handlers: {
+              polygon: {
+                tooltip: {
+                  start: 'Click to start drawing scan area',
+                  cont: 'Click to continue drawing scan area',
+                  end: 'Click first point to close scan area'
+                }
+              },
+              polyline: {
+                error: '<strong>Error:</strong> shape edges cannot cross!',
+                tooltip: {
+                  start: 'Click to start drawing line scan',
+                  cont: 'Click to continue drawing line scan',
+                  end: 'Click last point to finish line scan'
+                }
+              },
+              rectangle: {
+                tooltip: {
+                  start: 'Click and drag to draw scan area'
+                }
+              },
+            }
+          }
+        });
+
+        var _readableArea = L.GeometryUtil.readableArea;
+        L.GeometryUtil = L.extend(L.GeometryUtil, {
+          geodesicArea: function(latLngs) {
+            var X = latLngs.map(l => l.lng),
+                Y = latLngs.map(l => l.lat),
+                numPoints = latLngs.length;
+
+            var area = 0;
+            var j = numPoints - 1;
+
+            for (var i = 0; i < numPoints; i++) { 
+              area = area + (X[j]+X[i]) * (Y[j]-Y[i]);
+              j = i;
+            }
+  
+            return (area / 2);
+          },
+          readableArea: function(area, isMetric, precision) {
+            return _readableArea(area, isMetric, {
+              m: 2,
+              yd: 2,
+              ft: 1
+             });
+          }
+        });
+
         var drawControl = new L.Control.Draw({
           position: 'topright',
           draw: {
+            toolbar: {
+              buttons: {
+                polyline: 'Draw a line scan area',
+                polygon: 'Draw a polygon scan area',
+                rectangle: 'Draw a rectangular scan area'
+              }
+            },
             polygon: {
+              metric: true,
+              showArea: true,
               allowIntersection: false,
               drawError: {
                 color: '#e1e100',
@@ -599,22 +669,27 @@ function initUI() {
               }
             },
             rectangle: {
-                shapeOptions: {
-                    clickable: false
-                }
+              metric: true,
+              showArea: true,
+              shapeOptions: {
+                clickable: false
+              }
             },
             polyline: {
-                shapeOptions: {
-                    color: '#f357a1',
-                    weight: 10
-                }
+              metric: true,
+              showLength: true,
+              shapeOptions: {
+                color: '#f357a1',
+                weight: 10
+              }
             },
             circle: false,
-            marker: false
+            marker: false,
+            circlemarker: false,
           },
           edit: {
             featureGroup: editableLayers,
-            remove: false
+            remove: true
           }
         });
 
@@ -631,8 +706,6 @@ waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":-0.3,
         map.on(L.Draw.Event.CREATED, function (e) {
           var type = e.layerType,
               layer = e.layer;
-
-          debugger;
 
           if (type === 'polyline') {
             layer.getLatLngs().forEach(point => {
@@ -946,15 +1019,14 @@ waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":-0.3,
         currentPoseArrow.properties.x_start.set_value(pose.pos[0] * -1);
         currentPoseArrow.properties.y_start.set_value(pose.pos[1] * -1);
   
-        currentPoseArrow.properties.x_end.set_value(((Math.cos(euler[2] + Math.PI) * 0.0001) + pose.pos[0]) * -1 );
+        currentPoseArrow.properties.x_end.set_value(((Math.cos(euler[2] + Math.PI) * 0.0001) +  pose.pos[0]) * -1 );
         currentPoseArrow.properties.y_end.set_value(((Math.sin(euler[2] + Math.PI) * 0.0001) +  pose.pos[1]) * -1 );
 
         currentPoseArrow.change.emit();
-
       }
 
       headingNumberDegree.innerText = rad2Deg(convertAngle(euler[2])).toFixed(2) + '°';
-      headingNumberRadian.innerText = euler[2].toFixed(2);
+      headingNumberRadian.innerText = euler[2].toFixed(2) + 'r';
 
       if(!roverMesh) return;
       roverMesh.rotation.z = euler[2];

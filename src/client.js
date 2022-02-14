@@ -744,15 +744,17 @@ waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":-0.3,
             var scanLayer = L.polyline(points, { color: 'red' });
             if(type === 'polygon') {
               // TODO: joins, hole support
-
+              
+              const clone = (items) => items.map(item => Array.isArray(item) ? clone(item) : item);
+ 
               scanLayer.setLatLngs(greinerHormann.intersection(
                 scanLayer.getLatLngs().map(l => [l.lng, l.lat]),
-                layer.getLatLngs().pop().map(l => [l.lng, l.lat])
+                clone(layer.getLatLngs()).pop().map(l => [l.lng, l.lat])
               ).map(s => {
                 return s.map(p => [p[1], p[0]]);
               }));
             }
-
+            
             scanLayer.addTo(map);
           }
 

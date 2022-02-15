@@ -789,16 +789,26 @@ waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":-0.3,
         L.Control.Scale.include({
           _updateMetric: function(maxMeters) {
             var maxMilliMeters = maxMeters * 1000,
-                milliMeters = this._getRoundNum(maxMilliMeters),
-                label = milliMeters < 1000 ? milliMeters + " mm" : milliMeters / 1000 + " m";
+                milliMeters = this._getRoundNum(maxMilliMeters);
 
-            console.log(this._mScale, label, milliMeters / maxMilliMeters);
+            var label;
+            if(milliMeters > 1000) {
+              label = `${milliMeters / 1000} m`;
+            } else if(milliMeters < 1000 && milliMeters >= 100) {
+              label = `${milliMeters / 10} cm`;
+            } else {
+              label = `${milliMeters} mm`;
+            }
 
             this._updateScale(this._mScale, label, milliMeters / maxMilliMeters);
           }
         });
 
-        //L.control.scale().addTo(map);
+        L.control.scale({
+          position: 'bottomright',
+          metric: true,
+          imperial: false
+        }).addTo(map);
 
         window.map = map;
 

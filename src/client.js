@@ -545,7 +545,10 @@ function initUI() {
             scanPlanningParams.patterns[i] = pattern;
           }
 
+          debugger;
+
           remote.set('rover_scan_patterns', JSON.stringify(scanPlanningParams.patterns), () => {
+            debugger;
             scanPlanningParams.selectedPattern = pattern.name;
             initScanPatternUI();
           });
@@ -738,7 +741,6 @@ waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":-0.3,
                   minY + ((point[1] / stepInY) * ySize)
                 ]
               );
-
             });
 
             var scanLayer = L.polyline(points, { color: 'red' });
@@ -754,6 +756,15 @@ waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":-0.3,
                 return s.map(p => [p[1], p[0]]);
               }));
             }
+
+            pattern.trajectory.waypoints = scanLayer.getLatLngs().flat().map(l => { 
+              return {
+                rotation: { radians: 0 },
+                translation: { x: l.lng, y: l.lat }
+              };
+            });
+
+            console.log(pattern);
             
             scanLayer.addTo(map);
           }
@@ -761,6 +772,8 @@ waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":-0.3,
           pattern.geojson = layer.toGeoJSON();
           
           editableLayers.addLayer(layer);
+
+        
           
           //remote.publish('rover_trajectory', JSON.stringify(trajectory));
         });
@@ -813,7 +826,7 @@ waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":-0.3,
         window.map = map;
 
         var southWest = L.CRS.Simple.unproject({x: -1, y: -1});
-        var northEast = L.CRS.Simple.unproject({x: 1,y: 1});
+        var northEast = L.CRS.Simple.unproject({x: 1, y: 1});
         var bounds = new L.LatLngBounds(southWest, northEast); 
 
         map.setMaxBounds(bounds);
@@ -823,10 +836,18 @@ waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":-0.3,
           showOriginLabel: true, redraw: 'move' }).addTo(map);
       },
       generateTrajectory: function() {
+        if(scanPlanningParams.selectedPattern) {
+          var selectedPattern = scanPlanningParams.patterns.find(p => p.name === scanPlanningParams.selectedPattern);
+          
+          remote.publish('rover_trajectory', JSON.stringify(selectedPattern.trajectory));
+
+          //debugger;
+        }
+
 
       },
       run: function() {
-
+        remote.publish('rover_command', JSON.stringify({ command: 'RUN_ACTIVE_TRAJECTORY' }));
       }
     };
     
@@ -921,9 +942,14 @@ waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":-0.3,
 
     remote.subscribe('rover_trajectory_profile', (key, trajectories) => {
       trajectories.forEach(trajectory => {
+
+        console.log('traj!!!', trajectory);
+
         trajectorySource.data.timestamp.push(trajectory.time);
         trajectorySource.data.x.push(trajectory.pose.translation.x);
         trajectorySource.data.y.push(trajectory.pose.translation.y);
+
+        return;
 
         var tX = trajectory.pose.translation.x + (0.01 * Math.cos(trajectory.pose.rotation.radians)),
             tY = trajectory.pose.translation.y + (0.01 * Math.sin(trajectory.pose.rotation.radians));

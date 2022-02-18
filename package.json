@@ -26,6 +26,7 @@
     "leaflet": "^1.7.1",
     "leaflet-draw": "^1.0.4",
     "leaflet-rotatedmarker": "^0.2.0",
+    "line-interpolate-points": "^1.0.5",
     "mecanum": "^1.0.6",
     "microtime": "^3.0.0",
     "msgpack": "^1.0.3",

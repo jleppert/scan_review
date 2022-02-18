@@ -17,6 +17,7 @@ var dnode           = require('dnode'),
     poseIcon        = require('./poseIcon'),
     extend          = require('deep-extend'),
     greinerHormann  = require('greiner-hormann'),
+    lineLerp        = require('line-interpolate-points'),
     qte             = require('quaternion-to-euler');
 
 window.L = L;
@@ -728,12 +729,12 @@ waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":-0.3,
 
             var xSize = Math.abs(maxX - minX),
                 ySize = Math.abs(maxY - minY),
-                stepSize = 0.1,
-                stepInX = Math.ceil(xSize / stepSize),
-                stepInY = Math.ceil(ySize / stepSize);
+                stepSize = 0.05,
+                stepInX = xSize / stepSize,
+                stepInY = ySize / stepSize;
             
             var points = [];
-            Array.from(gi.zigzagRows2d(stepInX, stepInY)).forEach((point, i) => {
+            Array.from(gi.zigzagRows2d(Math.floor(stepInX) + 1, Math.floor(stepInY) + 1)).forEach((point, i) => {
               
               points.push(
                 [
@@ -838,6 +839,10 @@ waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":-0.3,
       generateTrajectory: function() {
         if(scanPlanningParams.selectedPattern) {
           var selectedPattern = scanPlanningParams.patterns.find(p => p.name === scanPlanningParams.selectedPattern);
+          
+          /*selectedPattern.trajectory.waypoints = lineLerp(selectedPattern.trajectory.waypoints.map(p => [p.translation.x, p.translation.y]), 
+            selectedPattern.trajectory.waypoints.length * 4
+          ).map(p => { return { rotation: { radians: 0 }, translation: { x: p[0], y: p[1] } }; });*/
           
           remote.publish('rover_trajectory', JSON.stringify(selectedPattern.trajectory));
 

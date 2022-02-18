@@ -71,6 +71,15 @@
         }
 
       .leaflet-control-attribution { display: none; }
+
+      #scanPatternModal .modal-footer .form {
+        margin-right: auto;
+      }
+
+      #scanPatternModal .modal-footer .resolution-label {
+        text-align: center;
+      }
+
   </style>
   
   <body class="d-flex flex-column h-100">
@@ -127,17 +136,32 @@
               ...
             </div>
             <div class="modal-footer">
-              <input type="text" id="patternName" class="form-control" placeholder="Pattern Name">
-              <div class="form-group">
-                <label>Pattern</label>
-                <select class="form-control">
-                  <option>ZigZag Columns</option>
-                  <option>ZigZag Rows</option>
-                  <option>Zigzag diagonal</option>
-                  <option>Rows</option>
-                  <option>Columns</option>
-                  <option>Outward Spiral</option>
-                </select>
+              <div class="row form">
+                <div class="col">
+                  <div class="mb-3">
+                    <input type="text" id="patternName" class="form-control" placeholder="Pattern Name">
+                  </div>
+
+                  <div class="mb-3">
+                    <select class="form-control">
+                      <option>ZigZag Columns</option>
+                      <option>ZigZag Rows</option>
+                      <option>Zigzag diagonal</option>
+                      <option>Rows</option>
+                      <option>Columns</option>
+                      <option>Outward Spiral</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="col">
+                  <div class="mb-3">
+                    <label for="customRange1" class="form-label">Resolution</label>
+                    <input type="range" class="form-range" id="customRange1">
+                  </div>
+                  <div class="mb-3 resolution-label">
+                    5 cm
+                  </div>
+                </div>
               </div>
               <button type="button" class="btn btn-secondary close-modal" data-bs-dismiss="modal">Close</button>
               <button type="button" id="savePattern" class="btn btn-primary">Save Pattern</button>

@@ -529,6 +529,12 @@ function initUI() {
           updateScanPattern();
         });
 
+        var scanPatternType = 'zigzagRows2d';
+        modalEl.querySelector('#patternType').addEventListener('input', function(e) {
+          scanPatternType = e.target.options[e.target.selectedIndex].value;
+          updateScanPattern();
+        });
+
         modalEl.querySelector('#savePattern').addEventListener('click', () => {
           var name = modalEl.querySelector('#patternName').value;
 
@@ -730,7 +736,7 @@ function initUI() {
               stepInY = ySize / stepSize;
           
           var points = [];
-          Array.from(gi.zigzagRows2d(Math.floor(stepInX) + 1, Math.floor(stepInY) + 1)).forEach((point, i) => {
+          Array.from(gi[scanPatternType](Math.floor(stepInX) + 1, Math.floor(stepInY) + 1)).forEach((point, i) => {
             
             points.push(
               [

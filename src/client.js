@@ -522,6 +522,13 @@ function initUI() {
           el.addEventListener('click', closeModal);
         });
 
+        var resolutionValue = 5; // in cm
+        modalEl.querySelector('#resolutionRange').addEventListener('input', function() {
+          resolutionValue = this.value;
+          modalEl.querySelector('.resolution-label').innerText = `${resolutionValue} cm`;
+          updateScanPattern();
+        });
+
         modalEl.querySelector('#savePattern').addEventListener('click', () => {
           var name = modalEl.querySelector('#patternName').value;
 
@@ -698,16 +705,68 @@ function initUI() {
           }
         });
 
-        /*
-waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":-0.007506866651380187,"y":-0.038567795113493814}}
-waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":0.3,"y":0.0}}
-waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":0.3,"y":0.3}}
-waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":0.0,"y":0.0}}
-waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":-0.3,"y":0.0}}
-waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":-0.3,"y":-0.3}}
-        */
-
         map.addControl(drawControl);
+       
+        var scanBoundsLayer;
+        var scanLayer = L.polyline([], { color: 'red' });
+        
+        scanLayer.addTo(map);
+
+        function updateScanPattern() {
+          var layer = scanBoundsLayer;
+          if(!layer) return;
+
+          var extent = layer.getBounds().toBBoxString().split(',');
+
+          var minX = parseFloat(extent[1]),
+              minY = parseFloat(extent[0]),
+              maxX = parseFloat(extent[3]),
+              maxY = parseFloat(extent[2]);
+
+          var xSize = Math.abs(maxX - minX),
+              ySize = Math.abs(maxY - minY),
+              stepSize = resolutionValue * 0.01,
+              stepInX = xSize / stepSize,
+              stepInY = ySize / stepSize;
+          
+          var points = [];
+          Array.from(gi.zigzagRows2d(Math.floor(stepInX) + 1, Math.floor(stepInY) + 1)).forEach((point, i) => {
+            
+            points.push(
+              [
+                minX + ((point[0] / stepInX) * xSize),
+                minY + ((point[1] / stepInY) * ySize)
+              ]
+            );
+          });
+
+          scanLayer.setLatLngs(points);
+
+          if(type === 'polygon') {
+            // TODO: joins, hole support
+            
+            const clone = (items) => items.map(item => Array.isArray(item) ? clone(item) : item);
+
+            scanLayer.setLatLngs(greinerHormann.intersection(
+              scanLayer.getLatLngs().map(l => [l.lng, l.lat]),
+              clone(layer.getLatLngs()).pop().map(l => [l.lng, l.lat])
+            ).map(s => {
+              return s.map(p => [p[1], p[0]]);
+            }));
+          }
+
+          pattern.trajectory.waypoints = scanLayer.getLatLngs().flat().map(l => { 
+            return {
+              rotation: { radians: 0 },
+              translation: { x: l.lng, y: l.lat }
+            };
+          });
+
+          console.log(pattern);
+          
+          scanLayer.addTo(map);
+        }
+
         map.on(L.Draw.Event.CREATED, function (e) {
           var type = e.layerType,
               layer = e.layer;
@@ -719,63 +778,16 @@ waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":-0.3,
                 translation: { x: point.lng, y: point.lat }
               });
             });
-          } else if(type === 'rectangle' || 'polygon') {
-            var extent = layer.getBounds().toBBoxString().split(',');
-
-            var minX = parseFloat(extent[1]),
-                minY = parseFloat(extent[0]),
-                maxX = parseFloat(extent[3]),
-                maxY = parseFloat(extent[2]);
-
-            var xSize = Math.abs(maxX - minX),
-                ySize = Math.abs(maxY - minY),
-                stepSize = 0.05,
-                stepInX = xSize / stepSize,
-                stepInY = ySize / stepSize;
-            
-            var points = [];
-            Array.from(gi.zigzagRows2d(Math.floor(stepInX) + 1, Math.floor(stepInY) + 1)).forEach((point, i) => {
-              
-              points.push(
-                [
-                  minX + ((point[0] / stepInX) * xSize),
-                  minY + ((point[1] / stepInY) * ySize)
-                ]
-              );
-            });
-
-            var scanLayer = L.polyline(points, { color: 'red' });
-            if(type === 'polygon') {
-              // TODO: joins, hole support
-              
-              const clone = (items) => items.map(item => Array.isArray(item) ? clone(item) : item);
- 
-              scanLayer.setLatLngs(greinerHormann.intersection(
-                scanLayer.getLatLngs().map(l => [l.lng, l.lat]),
-                clone(layer.getLatLngs()).pop().map(l => [l.lng, l.lat])
-              ).map(s => {
-                return s.map(p => [p[1], p[0]]);
-              }));
-            }
-
-            pattern.trajectory.waypoints = scanLayer.getLatLngs().flat().map(l => { 
-              return {
-                rotation: { radians: 0 },
-                translation: { x: l.lng, y: l.lat }
-              };
-            });
-
-            console.log(pattern);
-            
-            scanLayer.addTo(map);
+          } else if(type === 'rectangle' || type === 'polygon') {
+            scanBoundsLayer = layer;
+            layer.layerType = type;
+            updateScanPattern();
           }
 
-          pattern.geojson = layer.toGeoJSON();
-          
+          pattern.scanBoundsgeojson = layer.toGeoJSON();
+          pattern.scanPatterngeojson = scanLayer.toGeoJSON();
           editableLayers.addLayer(layer);
 
-        
-          
           //remote.publish('rover_trajectory', JSON.stringify(trajectory));
         });
 
@@ -792,9 +804,13 @@ waypoints: {"rotation":{"radians":-0.04140095279679845},"translation":{"x":-0.3,
                   translation: { x: point.lng, y: point.lat }
                 });
               });
+            } else if(type === 'rectangle' || type === 'polygon') {
+              scanBoundsLayer = layer;
+              updateScanPattern(); 
             }
-
-            pattern.geojson = layer.toGeoJSON();
+            
+            pattern.scanBoundsgeojson = layer.toGeoJSON();
+            pattern.scanPatterngeojson = scanLayer.toGeoJSON();
           });
 
         });

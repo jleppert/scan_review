@@ -8,6 +8,18 @@
     main > .container {
       padding: 120px 15px 0;
     }
+
+    .navbar-brand {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+
+      font-weight: bold;
+    }
+
+    .logo-icon {
+      height: 48px;
+    }
     
     .bd-placeholder-img {
       font-size: 1.125rem;
@@ -88,11 +100,13 @@
       <!-- Fixed navbar -->
       <nav class="navbar navbar-expand-md navbar-dark fixed-top bg-dark">
         <div class="container-fluid">
-          <a class="navbar-brand" href="#">Scan Review</a>
-        </div>
-      </nav>
-      <nav class="navbar navbar-light bg-light fixed-top scan-control">
-        <div class="container">
+          <a class="navbar-brand" href="#">
+            <img class="logo-icon" src="logo.png"/>
+            <div>Scan Review</div>
+          </a>
+          <span class="navbar-text">
+            Developer View
+          </span> 
         </div>
       </nav>
     </header>

@@ -25,6 +25,8 @@ require('./L.SimpleGraticule.js');
 require('leaflet-rotatedmarker');
 require('leaflet-draw');
 
+var flip = -1;
+
 var remote;
 var connectionManager = reconnect((stream) => {
   var d = dnode({
@@ -582,7 +584,7 @@ function initUI() {
         if(scanPlanningParams.selectedPattern) {
           var selectedPattern = scanPlanningParams.patterns.find(p => p.name === scanPlanningParams.selectedPattern);
 
-          if(selectedPattern) editableLayers = L.geoJSON(selectedPattern.geojson);
+          if(selectedPattern) editableLayers = L.geoJSON(selectedPattern.scanPatterngeojson);
           modalEl.querySelector('#patternName').value = selectedPattern.name;
         } else {
           editableLayers = new L.FeatureGroup();
@@ -784,14 +786,20 @@ function initUI() {
                 translation: { x: point.lng, y: point.lat }
               });
             });
+
+            debugger;
+
+            pattern.scanPatterngeojson = layer.toGeoJSON();
           } else if(type === 'rectangle' || type === 'polygon') {
             scanBoundsLayer = layer;
             layer.layerType = type;
             updateScanPattern();
-          }
+            
+            pattern.scanPatterngeojson = scanLayer.toGeoJSON();
 
+          }
+          
           pattern.scanBoundsgeojson = layer.toGeoJSON();
-          pattern.scanPatterngeojson = scanLayer.toGeoJSON();
           editableLayers.addLayer(layer);
 
           //remote.publish('rover_trajectory', JSON.stringify(trajectory));
@@ -1027,13 +1035,13 @@ function initUI() {
     var currentPoseArrow;
     remote.on('rover_pose', 100, (key, pose) => {
       positionSource.data.timestamp.push(pose.timestamp);
-      positionSource.data.x.push(pose.pos[0] * -1);
-      positionSource.data.y.push(pose.pos[1] * -1);
+      positionSource.data.x.push(pose.pos[0] * flip);
+      positionSource.data.y.push(pose.pos[1] * flip);
 
-      xSource.data.x.push(pose.pos[0] * -1);
+      xSource.data.x.push(pose.pos[0] * flip);
       xSource.data.timestamp.push(pose.timestamp);
 
-      ySource.data.y.push(pose.pos[1] * -1);
+      ySource.data.y.push(pose.pos[1] * flip);
       ySource.data.timestamp.push(pose.timestamp);
 
       var euler = qte(pose.rot);
@@ -1054,11 +1062,11 @@ function initUI() {
         positionPlot.add_layout(currentPoseArrow);
 
       } else {
-        currentPoseArrow.properties.x_start.set_value(pose.pos[0] * -1);
-        currentPoseArrow.properties.y_start.set_value(pose.pos[1] * -1);
+        currentPoseArrow.properties.x_start.set_value(pose.pos[0] * flip);
+        currentPoseArrow.properties.y_start.set_value(pose.pos[1] * flip);
   
-        currentPoseArrow.properties.x_end.set_value(((Math.cos(euler[2] + Math.PI) * 0.0001) +  pose.pos[0]) * -1 );
-        currentPoseArrow.properties.y_end.set_value(((Math.sin(euler[2] + Math.PI) * 0.0001) +  pose.pos[1]) * -1 );
+        currentPoseArrow.properties.x_end.set_value(((Math.cos(euler[2] + Math.PI) * 0.0001) +  pose.pos[0]) * flip );
+        currentPoseArrow.properties.y_end.set_value(((Math.sin(euler[2] + Math.PI) * 0.0001) +  pose.pos[1]) * flip );
 
         currentPoseArrow.change.emit();
       }
@@ -1070,7 +1078,7 @@ function initUI() {
       roverMesh.rotation.z = euler[2];
 
       if(currentRoverPoseMapMarker) {
-        currentRoverPoseMapMarker.setLatLng([pose.pos[1] * -1, pose.pos[0] * -1]);
+        currentRoverPoseMapMarker.setLatLng([pose.pos[1] * flip, pose.pos[0] * flip]);
         currentRoverPoseMapMarker.setRotationAngle(rad2Deg((Math.PI / 2) - euler[2]));
       }
 
@@ -1081,19 +1089,19 @@ function initUI() {
       if(!lastVelocity) lastVelocity = velocity;
 
       velocitySource.data.timestamp.push(velocity.timestamp);
-      velocitySource.data.x.push(velocity.pos[0] * -1);
+      velocitySource.data.x.push(velocity.pos[0] * flip);
 
-      velocitySource.data.y.push(velocity.pos[1] * -1);
+      velocitySource.data.y.push(velocity.pos[1] * flip);
 
-      velocitySource.data.theta.push(filter.estimate(velocity.theta[2] * -1));
+      velocitySource.data.theta.push(filter.estimate(velocity.theta[2] * flip));
 
       var dt = velocity.timestamp - lastVelocity.timestamp;
 
       if(dt > 0) {
         accelerationSource.data.timestamp.push(velocity.timestamp);
-        accelerationSource.data.x.push(((velocity.pos[0] - lastVelocity.pos[0]) / dt) * -1 );
-        accelerationSource.data.y.push(((velocity.pos[1] - lastVelocity.pos[1]) / dt) * -1 );
-        accelerationSource.data.theta.push(((filter.estimate(velocity.theta[2]) - filter.estimate(lastVelocity.theta[2])) / dt) * -1 );
+        accelerationSource.data.x.push(((velocity.pos[0] - lastVelocity.pos[0]) / dt) * flip );
+        accelerationSource.data.y.push(((velocity.pos[1] - lastVelocity.pos[1]) / dt) * flip );
+        accelerationSource.data.theta.push(((filter.estimate(velocity.theta[2]) - filter.estimate(lastVelocity.theta[2])) / dt) * flip );
       }
 
       //velocitySource.change.emit();

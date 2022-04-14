@@ -474,6 +474,23 @@ function initUI() {
       thetaControllerP: [0.1, 10, 0.001],
       thetaControllerI: [0, 5, 0.001],
       thetaControllerD: [0, 5, 0.001],
+      frontLeftWheelControllerD: [0, 5, 0.001],
+      frontLeftWheelControllerI: [0, 5, 0.001],
+      frontLeftWheelControllerP: [0.1, 10, 0.001],
+      frontRightWheelControllerD: [0, 5, 0.001],
+      frontRightWheelControllerI: [0, 5, 0.001],
+      frontRightWheelControllerP: [0.1, 10, 0.001],
+      backLeftWheelControllerD: [0, 5, 0.001],
+      backLeftWheelControllerI: [0, 5, 0.001],
+      backLeftWheelControllerP: [0.1, 10, 0.001],
+      backRightWheelControllerD: [0, 5, 0.001],
+      backRightWheelControllerI: [0, 5, 0.001],
+      backRightWheelControllerP: [0.1, 10, 0.001],
+      minWheelVoltage: [-32768, 32768, 1],
+      maxWheelVoltage: [-32768, 32768, 1],
+      wheelMotorFeedforwardkA: [0.000001, 1, 0.000001],
+      wheelMotorFeedforwardkS: [0.0001, 1, 0.0001],
+      wheelMotorFeedforwardkV: [0.001, 1, 0.001]
     };
 
     var scanPlanningParams = {

@@ -76,7 +76,7 @@ app.use(express.static('data'));
 
 var server = http.createServer(app);
 
-var redisClient = redis.createClient();
+var redisClient = redis.createClient('/var/run/redis/redis-server.sock');
 redisClient.on('error', (err) => console.log('Redis Client Error', err));
 
 var remotes = {},
@@ -103,6 +103,8 @@ function toArrayBuffer(buf) {
     }
     return ab;
 }
+
+BigInt.prototype.toJSON = function() { return this.toString() };
 
 var sock = shoe(function(stream) {
   var remote;
@@ -165,14 +167,20 @@ var sock = shoe(function(stream) {
       await redisClient.publish(Buffer.from(key), value);
     },
 
-    subscribe: async function(key, cb = function() {}) {
+    subscribe: async function(key, cb = function() {}, unpackMessage = false) {
       var subscriber = redisClient.duplicate();
 
       await subscriber.connect();
 
-      await subscriber.subscribe(key, message => {
-        cb(key, JSON.parse(message));
-      });
+      await subscriber.subscribe(Buffer.from(key), (message, key) => {
+        //console.log(key, message);
+
+        //message = Buffer.from(message);
+        //if(unpackMessage) {
+        //  message = Buffer.isBuffer(message) ? message : Buffer.from(message);
+        //}
+        cb(key.toString(), unpackMessage ? unpack(message) : JSON.parse(message.toString()));
+      }, true);
     },
 
     getParameters: async function(cb = function() {}) {

@@ -27,6 +27,15 @@ require('leaflet-draw');
 
 var flip = -1;
 
+const WHEEL_RADIUS = 45;
+function rpmToVelocity(rpm) {
+  return ((rpm / 60) * (Math.PI * 2) * (WHEEL_RADIUS * 0.001));
+}
+
+function velocityToRPM(speed) {
+  return ((60 * speed) / ((WHEEL_RADIUS * 0.001 * Math.PI) * 2));
+}
+
 var remote;
 var connectionManager = reconnect((stream) => {
   var d = dnode({
@@ -321,7 +330,7 @@ function initUI() {
     var velocityPlot = new Bokeh.Plotting.figure({
       title: 'Velocity Estimate',
       y_range: new Bokeh.Range1d({ start: -0.5, end: 0.5 }),
-      width: initialWidth,
+      width: 1500,
       height: 400,
       background_fill_color: '#F2F2F7',
       tools: tools,
@@ -347,7 +356,7 @@ function initUI() {
         timestamp: [],
         x: [],
         y: [],
-        theta: []
+        //theta: []
       }
     });
 
@@ -378,13 +387,13 @@ function initUI() {
       line_width: 2
     });
 
-    velocityPlot.line({ field: 'timestamp' }, { field: 'theta' }, {
+    /*velocityPlot.line({ field: 'timestamp' }, { field: 'theta' }, {
       source: velocitySource,
       line_color: velocityScheme[2],
       legend_label: 'velocity_θ',
       line_width: 2,
       y_range_name: 'velocity_theta'
-    });
+    });*/
 
     velocityPlot.line({ field: 'timestamp' }, { field: 'x' }, {
       source: velocityTrajectorySource,
@@ -393,6 +402,7 @@ function initUI() {
       line_width: 2
     });
 
+    
     velocityPlot.line({ field: 'timestamp' }, { field: 'y' }, {
       source: velocityTrajectorySource,
       line_color: velocityScheme[4],
@@ -434,7 +444,7 @@ function initUI() {
     addPlot(accelerationPlot, accelerationSource);
 
     addPlot(headingPlot, [headingSource, headingTrajectorySource]);
-    
+   
     function rad2Deg(rad) {
       return rad * 180 / Math.PI;
     }
@@ -461,7 +471,7 @@ function initUI() {
       maxXPosition: [0.1, 1, 0.01, 'meters'],
       maxYPosition: [0.1, 1, 0.01, 'meters'],
       linearTolerance: [0.001, 0.1, 0.001, 'meters'],
-      angularTolerance: [2.0 * Math.PI / 360, 2.0 * Math.PI / 90, 'radians'],
+      angularTolerance: [(2.0 * Math.PI / 360), (2.0 * Math.PI / 90), (2.0 * Math.PI / 360),'radians'],
       poseToleranceX: [0.001, 0.1, 0.001, 'meters'],
       poseToleranceY: [0.001, 0.1, 0.001, 'meters'],
       poseToleranceTheta: [0.009, 0.26, 0.01, 'radians'],
@@ -474,23 +484,23 @@ function initUI() {
       thetaControllerP: [0.1, 10, 0.001],
       thetaControllerI: [0, 5, 0.001],
       thetaControllerD: [0, 5, 0.001],
-      frontLeftWheelControllerD: [0, 5, 0.001],
-      frontLeftWheelControllerI: [0, 5, 0.001],
-      frontLeftWheelControllerP: [0.1, 10, 0.001],
-      frontRightWheelControllerD: [0, 5, 0.001],
-      frontRightWheelControllerI: [0, 5, 0.001],
-      frontRightWheelControllerP: [0.1, 10, 0.001],
-      backLeftWheelControllerD: [0, 5, 0.001],
-      backLeftWheelControllerI: [0, 5, 0.001],
-      backLeftWheelControllerP: [0.1, 10, 0.001],
-      backRightWheelControllerD: [0, 5, 0.001],
-      backRightWheelControllerI: [0, 5, 0.001],
-      backRightWheelControllerP: [0.1, 10, 0.001],
+      frontLeftWheelControllerD: [0, 10, 0.001],
+      frontLeftWheelControllerI: [0, 10, 0.001],
+      frontLeftWheelControllerP: [0, 10, 0.001],
+      frontRightWheelControllerD: [0, 10, 0.001],
+      frontRightWheelControllerI: [0, 10, 0.001],
+      frontRightWheelControllerP: [0, 10, 0.001],
+      backLeftWheelControllerD: [0, 10, 0.001],
+      backLeftWheelControllerI: [0, 10, 0.001],
+      backLeftWheelControllerP: [0, 10, 0.001],
+      backRightWheelControllerD: [0, 10, 0.001],
+      backRightWheelControllerI: [0, 10, 0.001],
+      backRightWheelControllerP: [0, 10, 0.001],
       minWheelVoltage: [-32768, 32768, 1],
       maxWheelVoltage: [-32768, 32768, 1],
-      wheelMotorFeedforwardkA: [0.000001, 1, 0.000001],
-      wheelMotorFeedforwardkS: [0.0001, 1, 0.0001],
-      wheelMotorFeedforwardkV: [0.001, 1, 0.001]
+      wheelMotorFeedforwardkA: [0, 1000, 0.000001],
+      wheelMotorFeedforwardkS: [0, 1000, 0.0001],
+      wheelMotorFeedforwardkV: [0, 1000, 0.001]
     };
 
     var scanPlanningParams = {
@@ -514,7 +524,7 @@ function initUI() {
       
         var trajectory = {
           waypoints: [],
-          maxAcceleration: 0.3,
+          maxAcceleration: 0.1,
           maxVelocity: 0.3
         };
 
@@ -548,9 +558,36 @@ function initUI() {
           updateScanPattern();
         });
 
-        var scanPatternType = 'zigzagRows2d';
-        modalEl.querySelector('#patternType').addEventListener('input', function(e) {
-          scanPatternType = e.target.options[e.target.selectedIndex].value;
+        var scanPatternTypeEl = modalEl.querySelector('#patternType');
+        debugger;
+
+        var scanPatternTypeOptions = {
+          'ZigZag Columns & Rows': ['zigzagRows2d', 'zigzagColumns2d'],
+          'ZigZag Columns': ['zigzagColumns'],
+          'ZigZag Rows': ['zigzagRows2d'],
+          'ZigZag Diagonal': ['zigzagDiagonal2d'],
+          'Columns': ['columns2d'],
+          'Rows': ['rowss2d'],
+          'Interleave Columns': ['interleaveColumns2d'],
+          'Interleave Rows': ['interleaveRows2d'],
+          'Outward Spiral': ['spiral2d'],
+          'Hilbert': ['hilbert2d']
+        };
+
+        Object.keys(scanPatternTypeOptions).forEach(key => {
+          var optionEl = document.createElement('option');
+          optionEl.innerText = key;
+          optionEl.value = encodeURIComponent(JSON.stringify(scanPatternTypeOptions[key]));
+
+          scanPatternTypeEl.appendChild(optionEl);
+        });
+
+
+
+        var scanPatternType = JSON.parse(decodeURIComponent(scanPatternTypeEl.options[scanPatternTypeEl.selectedIndex].value));
+        scanPatternTypeEl.addEventListener('input', function(e) {
+          scanPatternType = JSON.parse(decodeURIComponent(e.target.options[e.target.selectedIndex].value));
+          debugger;
           updateScanPattern();
         });
 
@@ -755,14 +792,20 @@ function initUI() {
               stepInY = ySize / stepSize;
           
           var points = [];
-          Array.from(gi[scanPatternType](Math.floor(stepInX) + 1, Math.floor(stepInY) + 1)).forEach((point, i) => {
-            
-            points.push(
-              [
-                minX + ((point[0] / stepInX) * xSize),
-                minY + ((point[1] / stepInY) * ySize)
-              ]
-            );
+
+          scanPatternType.forEach(patternType => {
+
+            Array.from(gi[patternType](Math.floor(stepInX) + 1, Math.floor(stepInY) + 1)).forEach((point, i) => {
+              
+              points.push(
+                [
+                  minX + ((point[0] / stepInX) * xSize),
+                  minY + ((point[1] / stepInY) * ySize)
+                ]
+              );
+            });
+
+            points.push([0, 0]);
           });
 
           scanLayer.setLatLngs(points);
@@ -916,6 +959,8 @@ function initUI() {
         if(key === 'timestamp') return;
 
         var c = paramsConstraints[key];
+        
+        params[key] = params[key] || 0;
 
         tuning.add(params, key).min(c[0]).max(c[1]).step(c[2])
           .onFinishChange(() => {
@@ -1031,8 +1076,8 @@ function initUI() {
       yTrajectorySource.data.timestamp.push(sample.timestamp);
       yTrajectorySource.data.y.push(y);
 
-      headingTrajectorySource.data.timestamp.push(sample.timestamp);
-      headingTrajectorySource.data.theta.push(sample.trajectory.pose.rotation.radians);
+      //headingTrajectorySource.data.timestamp.push(sample.timestamp);
+      //headingTrajectorySource.data.theta.push(sample.trajectory.pose.rotation.radians);
 
       var magnitude = Math.hypot(x, y);
 
@@ -1044,9 +1089,9 @@ function initUI() {
         mSin = y / magnitude;
       }
       
-      velocityTrajectorySource.data.timestamp.push(sample.timestamp);
-      velocityTrajectorySource.data.x.push(sample.trajectory.velocity * mCos);
-      velocityTrajectorySource.data.y.push(sample.trajectory.velocity * mSin);
+      /*velocityTrajectorySource.data.timestamp.push(sample.timestamp);
+      velocityTrajectorySource.data.x.push(sample.trajectory.velocity * mCos * flip);
+      velocityTrajectorySource.data.y.push(sample.trajectory.velocity * mSin * flip);*/
     });
 
     var currentPoseArrow;
@@ -1101,24 +1146,25 @@ function initUI() {
 
     });
 
+    var lastTimestamp = 0;
     var filter = new LowPassFilter(0.5), lastVelocity;
     remote.on('rover_pose_velocity', 100, (key, velocity) => {
       if(!lastVelocity) lastVelocity = velocity;
 
-      velocitySource.data.timestamp.push(velocity.timestamp);
+      /*velocitySource.data.timestamp.push(lastTimestamp);
       velocitySource.data.x.push(velocity.pos[0] * flip);
 
       velocitySource.data.y.push(velocity.pos[1] * flip);
 
-      velocitySource.data.theta.push(filter.estimate(velocity.theta[2] * flip));
+      velocitySource.data.theta.push(filter.estimate(velocity.theta[2]));*/
 
       var dt = velocity.timestamp - lastVelocity.timestamp;
 
       if(dt > 0) {
         accelerationSource.data.timestamp.push(velocity.timestamp);
-        accelerationSource.data.x.push(((velocity.pos[0] - lastVelocity.pos[0]) / dt) * flip );
-        accelerationSource.data.y.push(((velocity.pos[1] - lastVelocity.pos[1]) / dt) * flip );
-        accelerationSource.data.theta.push(((filter.estimate(velocity.theta[2]) - filter.estimate(lastVelocity.theta[2])) / dt) * flip );
+        accelerationSource.data.x.push(((velocity.pos[0] - lastVelocity.pos[0]) / dt));
+        accelerationSource.data.y.push(((velocity.pos[1] - lastVelocity.pos[1]) / dt));
+        accelerationSource.data.theta.push(((filter.estimate(velocity.theta[2]) - filter.estimate(lastVelocity.theta[2])) / dt));
       }
 
       //velocitySource.change.emit();
@@ -1142,265 +1188,312 @@ function initUI() {
       output_backend: 'webgl'
     });
 
-    var wheelEncodersPlot = new Bokeh.Plotting.figure({
-      title: 'Wheel Encoders',
+    var frontLeftWheelPlot = new Bokeh.Plotting.figure({
+      title: 'Front Left Wheel',
       width: initialWidth,
       height: 400,
       background_fill_color: '#F2F2F7',
       tools: tools,
-      output_backend: 'webgl'
+      //output_backend: 'webgl'
     });
 
-    var batterySource = new Bokeh.ColumnDataSource({
-      data: { 
-        timestamp: [], 
-        adc_val: [],
-        current: [], 
-        percent: [], 
-        temperature: [] }
-    });
-
-    var batteryFields;
-
-    var yRangeMapping = {
-      adc_val: new Bokeh.Range1d({ start: 8000, end: 11000 }),
-      percent: new Bokeh.Range1d({ start: 0, end: 100 }),
-      current: new Bokeh.Range1d({ start: -2000, end: 0 }),
-      temperature: new Bokeh.Range1d({ start: 100, end: 500 })
-    };
-
-    batteryPlot.extra_y_ranges = yRangeMapping;
-    window.batteryFields = batteryFields;
-    window.batteryPlot = batteryPlot;
-
-    var scheme = colorBrewer.Spectral;
-    var legendMapping = {}; 
-
-    remote.on('rover_battery_state', 1000, (key, batteryMessage) => {
-      if(!batteryFields) {
-
-
-        batteryFields = Object.keys(batteryMessage).map((bKey, i) => {
-          if(bKey === 'timestamp') return;
-          
-          var yRangeName = yRangeMapping[bKey] ? bKey : undefined,
-              legendLabel = legendMapping[bKey] ? legendMapping[bKey] : bKey;
-
-          batteryPlot.line({ field: 'timestamp' }, { field: bKey }, {
-            source: batterySource,
-            line_color: scheme[Object.keys(batteryMessage).length - 1][i],
-            line_width: 2,
-            legend_label: legendLabel,
-            y_range_name: yRangeName
-          });
-
-          batteryPlot.add_layout(new Bokeh.LinearAxis({ y_range_name: yRangeName, axis_label: legendLabel }), i % 2 === 0 ? 'left' : 'right');
-        });
-
-        batteryPlot.change.emit();
-
-        addPlot(batteryPlot, batterySource);
-      } else {
-        Object.keys(batteryMessage).forEach(key => {
-          if(key === 'timestamp') return batterySource.data.timestamp.push(batteryMessage.timestamp);
-          batterySource.data[key].push(batteryMessage[key]);
-
-        });
-
-        //batterySource.change.emit();
-      }
-    });
-
-    var wheelEncoderFields;
-
-    var wheelEncodersYRangeMapping = {
-      rpm: new Bokeh.Range1d({ start: -200, end: 200 }),
-      enc: new Bokeh.Range1d({ start: 0, end: 45000 }),
-    };
-
-    wheelEncodersPlot.extra_y_ranges = wheelEncodersYRangeMapping; 
-
-    var wheelEncodersScheme = colorBrewer.Spectral[4];
-    var wheelEncodersLegendMapping = {}; 
-
-    var wheelEncodersSource;
-    remote.on('rover_wheel_encoder', 100, (key, wheelEncoderMessage) => {
-      var fieldLengths = {};
-
-      if(!wheelEncoderFields) {
-        var data = { timestamp: [] };
-
-        for(var i = 0; i < 4; i++) {
-          data[`rpm_${i}`] = [];
-          data[`enc_${i}`] = [];
-        }
-
-        wheelEncodersSource = new Bokeh.ColumnDataSource({ data: data });
-
-        wheelEncoderFields = Object.keys(wheelEncoderMessage).map((bKey, i) => {
-          if(bKey === 'timestamp') return;
-          
-          fieldLengths[bKey] = wheelEncoderMessage[bKey].length;
-          var yRangeName = wheelEncodersYRangeMapping[bKey] ? bKey : undefined,
-              legendLabel = wheelEncodersLegendMapping[bKey] ? wheelEncodersLegendMapping[bKey] : bKey;
-          
-          if(bKey === 'rpm' || bKey === 'enc') {
-            
-            for(var i = 0; i < 4; i++) {
-              wheelEncodersPlot.line({ field: 'timestamp' }, { field: `${bKey}_${i}` }, {
-                source: wheelEncodersSource,
-                line_color: wheelEncodersScheme[i],
-                line_width: 2,
-                legend_label: `${legendLabel}_${i}`,
-                y_range_name: yRangeName
-              });
-            }
-          }
-
-          wheelEncodersPlot.add_layout(new Bokeh.LinearAxis({ y_range_name: yRangeName, axis_label: legendLabel }), bKey === 'rpm' ? 'left' : 'right');
-        });
-
-        wheelEncodersPlot.change.emit();
-
-        addPlot(wheelEncodersPlot, wheelEncodersSource);
-      } else {
-        Object.keys(wheelEncoderMessage).forEach(k => {
-          if(k === 'timestamp') return wheelEncodersSource.data.timestamp.push(wheelEncoderMessage.timestamp);
-          
-          if(k === 'rpm' || k === 'enc') {
-            for(var i = 0; i < 4; i++) {
-              wheelEncodersSource.data[`${k}_${i}`].push(wheelEncoderMessage[k][i]);
-            }
-          }
-        });
-
-        //wheelEncodersSource.change.emit();
-
-      }
-    });
-    
-    var wheelVelocityCommandFields, wheelVelocityOutputFields;;
-
-    var wheelVelocityYRangeMapping = {
-      velocity: new Bokeh.Range1d({ start: -200, end: 200 }),
-    };
-
-    var wheelVelocityPlot = new Bokeh.Plotting.figure({
-      title: 'Wheel Velocity Commands & Outputs',
+    var frontRightWheelPlot = new Bokeh.Plotting.figure({
+      title: 'Front Right Wheel',
       width: initialWidth,
       height: 400,
       background_fill_color: '#F2F2F7',
-      y_range: wheelVelocityYRangeMapping.velocity,
-      tools: tools
+      tools: tools,
+      //output_backend: 'webgl'
     });
 
-    var wheelVelocityScheme = colorBrewer.Spectral[4];
-    var wheelVelocityLegendMapping = {}; 
+    var backLeftWheelPlot = new Bokeh.Plotting.figure({
+      title: 'Back Left Wheel',
+      width: initialWidth,
+      height: 400,
+      background_fill_color: '#F2F2F7',
+      tools: tools,
+      //output_backend: 'webgl'
+    });
 
-    var wheelVelocityOutputSource;
-    remote.on('rover_wheel_velocity_output', 100, (key, wheelVelocityMessage) => {
-      //console.log(wheelVelocityMessage.timestamp);
-      if(!wheelVelocityOutputFields) {
-        var outputData = { timestamp: [] };
+    var backRightWheelPlot = new Bokeh.Plotting.figure({
+      title: 'Back Right Wheel',
+      width: initialWidth,
+      height: 400,
+      background_fill_color: '#F2F2F7',
+      tools: tools,
+      //output_backend: 'webgl'
+    });
 
-        for(var i = 0; i < 4; i++) {
-          outputData[`velocity_${i}`] = [];
-        }
+    var scheme = colorBrewer.Spectral;
 
-        wheelVelocityOutputSource = new Bokeh.ColumnDataSource({ data: outputData });
-        window.wheelVelocityOutputSource = wheelVelocityOutputSource;
+    function wheelStatusYRangeMapping() {
 
-        wheelVelocityOutputFields = Object.keys(wheelVelocityMessage).map((bKey, i) => {
-          if(bKey === 'timestamp') return;
-          
-          if(bKey === 'velocity') {
-            
-            for(var i = 0; i < 4; i++) {
-              wheelVelocityPlot.line({ field: 'timestamp' }, { field: `${bKey}_${i}` }, {
-                source: wheelVelocityOutputSource,
-                line_color: wheelVelocityScheme[i],
-                line_width: 2,
-                legend_label: `${bKey}_output_${i}`,
-              });
-            }
-          }
-        });
+      return {
+        //angle: new Bokeh.Range1d({ start: 0, end: 8191 }),
+        velocity: new Bokeh.Range1d({ start: -1, end: 1 }),
+        velocityTarget: new Bokeh.Range1d({ start: -1, end: 1 }),
+        output: new Bokeh.Range1d({ start: -1, end: 1 }),
+        voltage: new Bokeh.Range1d({ start: -30000, end: 30000 }),
+        //torque: new Bokeh.Range1d({ start: -100, end: 100 }),
+        //temperature: new Bokeh.Range1d({ start: 0, end: 100 }),
+      };
+    }
 
-        wheelVelocityPlot.change.emit();
-        window.addPlot = addPlot;
-        window.wheelVelocityPlot = wheelVelocityPlot;
-        addPlot(wheelVelocityPlot, wheelVelocityOutputSource);
-      } else {
-        Object.keys(wheelVelocityMessage).forEach(k => {
-          if(k === 'timestamp') return wheelVelocityOutputSource.data.timestamp.push(wheelVelocityMessage.timestamp);
-          
-          if(k === 'velocity') {
-            for(var i = 0; i < 4; i++) {
-              wheelVelocityOutputSource.data[`${k}_${i}`].push(wheelVelocityMessage[k][i]);
-            }
-          }
-        });
+    frontLeftWheelPlot.extra_y_ranges  = wheelStatusYRangeMapping();
+    frontRightWheelPlot.extra_y_ranges = wheelStatusYRangeMapping();
+    backLeftWheelPlot.extra_y_ranges   = wheelStatusYRangeMapping();
+    backRightWheelPlot.extra_y_ranges  = wheelStatusYRangeMapping();
 
-        //wheelVelocityOutputSource.change.emit();
+    var frontLeftWheelStatus = new Bokeh.ColumnDataSource({
+      data: {
+        timestamp: [],
+        velocity: [],
       }
     });
 
-    var wheelVelocityCommandSource;
+    var frontRightWheelStatus = new Bokeh.ColumnDataSource({
+      data: {
+        timestamp: [],
+        velocity: [],
+      }
+    });
 
-    var lastWheelVelocityCommand;
+    var backLeftWheelStatus = new Bokeh.ColumnDataSource({
+      data: {
+        timestamp: [],
+        velocity: [],
+      }
+    });
+   
+    var backRightWheelStatus = new Bokeh.ColumnDataSource({
+      data: {
+        timestamp: [],
+        velocity: [],
+      }
+    });
+
+    var frontLeftWheelState = new Bokeh.ColumnDataSource({
+      data: {
+        timestamp: [],
+        velocityTarget: [],
+        output: [],
+      }
+    });
+
+    var frontRightWheelState = new Bokeh.ColumnDataSource({
+      data: {
+        timestamp: [],
+        velocityTarget: [],
+        output: []
+      }
+    });
+
+    var backLeftWheelState = new Bokeh.ColumnDataSource({
+      data: {
+        timestamp: [],
+        velocityTarget: [],
+        output: []
+      }
+    });
+   
+    var backRightWheelState = new Bokeh.ColumnDataSource({
+      data: {
+        timestamp: [],
+        velocityTarget: [],
+        output: []
+      }
+    });
+
+    var frontLeftWheelVoltage = new Bokeh.ColumnDataSource({
+      data: {
+        timestamp: [],
+        voltage: []
+      }
+    });
+
+    var frontRightWheelVoltage = new Bokeh.ColumnDataSource({
+      data: {
+        timestamp: [],
+        voltage: []
+      }
+    });
+
+    var backLeftWheelVoltage = new Bokeh.ColumnDataSource({
+      data: {
+        timestamp: [],
+        voltage: []
+      }
+    });
+   
+    var backRightWheelVoltage = new Bokeh.ColumnDataSource({
+      data: {
+        timestamp: [],
+        voltage: []
+      }
+    });
+
+    // error
+
+    var wheelPlots = [
+      [frontLeftWheelPlot, [frontLeftWheelStatus, frontLeftWheelState, frontLeftWheelVoltage]],
+      [frontRightWheelPlot, [frontRightWheelStatus, frontRightWheelState, frontRightWheelVoltage]],
+      [backLeftWheelPlot, [backLeftWheelStatus, backLeftWheelState, backLeftWheelVoltage]],
+      [backRightWheelPlot, [backRightWheelStatus, backRightWheelState, backRightWheelVoltage]]
+    ];
     
-    remote.on('rover_wheel_velocity_command', 100, (key, wheelVelocityMessage) => {
-      if(!wheelVelocityCommandFields) {
-        var outputData = { timestamp: [] };
+    var wheelStatusScheme = colorBrewer.Spectral[5];
+    var wheelStateScheme = colorBrewer.Spectral[5];
 
-        for(var i = 0; i < 4; i++) {
-          outputData[`velocity_${i}`] = [];
-        }
 
-        wheelVelocityCommandSource = new Bokeh.ColumnDataSource({ data: outputData });
-
-        wheelVelocityCommandFields = Object.keys(wheelVelocityMessage).map((bKey, i) => {
-          if(bKey === 'timestamp') return;
-          
-          if(bKey === 'velocity') {
-            
-            for(var i = 0; i < 4; i++) {
-                wheelVelocityPlot.circle({ field: 'timestamp' }, { field: `${bKey}_${i}` }, {
-                source: wheelVelocityCommandSource,
-                fill_color: wheelVelocityScheme[i],
-                line_color: wheelVelocityScheme[i],
-                fill_alpha: 0.8,
-                legend_label: `${bKey}_command_${i}`,
-              });
-            }
-          }
+      wheelPlots.forEach(wheelPlot => {
+        wheelPlot[0].add_layout(new Bokeh.LinearAxis({ y_range_name: 'velocity', axis_label: 'velocity' }), 'left');
+        
+        wheelPlot[0].line({ field: 'timestamp' }, { field: 'velocity' }, {
+          source: wheelPlot[1][0],
+          line_color: wheelStatusScheme[0],
+          line_width: 2,
+          legend_label: 'velocity',
+          y_range_name: 'velocity'
         });
 
-        wheelVelocityPlot.change.emit();
-
-      }
-
-      if(!lastWheelVelocityCommand) {
-        lastWheelVelocityCommand = wheelVelocityMessage;
-      } else {
-        if(lastWheelVelocityCommand.timestamp === wheelVelocityMessage.timestamp) return;
-      }
-
-      lastWheelVelocityCommand = wheelVelocityMessage;
-
-      Object.keys(wheelVelocityMessage).forEach(k => {
-        if(k === 'timestamp') return wheelVelocityCommandSource.data.timestamp.push(wheelVelocityMessage.timestamp);
+        wheelPlot[0].add_layout(new Bokeh.LinearAxis({ y_range_name: 'velocityTarget', axis_label: 'velocityTarget' }), 'left');
         
-        if(k === 'velocity') {
-          for(var i = 0; i < 4; i++) {
-            wheelVelocityCommandSource.data[`${k}_${i}`].push(wheelVelocityMessage[k][i]);
-          }
-        }
+        wheelPlot[0].line({ field: 'timestamp' }, { field: 'velocityTarget' }, {
+          source: wheelPlot[1][1],
+          line_color: wheelStateScheme[2],
+          line_width: 2,
+          legend_label: 'velocityTarget',
+          y_range_name: 'velocityTarget'
+        });
+
+        wheelPlot[0].add_layout(new Bokeh.LinearAxis({ y_range_name: 'output', axis_label: 'output' }), 'left');
+        
+        wheelPlot[0].line({ field: 'timestamp' }, { field: 'output' }, {
+          source: wheelPlot[1][1],
+          line_color: wheelStateScheme[4],
+          line_width: 2,
+          legend_label: 'output',
+          y_range_name: 'output'
+        });
+
+
+        wheelPlot[0].add_layout(new Bokeh.LinearAxis({ y_range_name: 'voltage', axis_label: 'voltage' }), 'left');
+        
+        wheelPlot[0].line({ field: 'timestamp' }, { field: 'voltage' }, {
+          source: wheelPlot[1][2],
+          line_color: wheelStateScheme[3],
+          line_width: 2,
+          legend_label: 'voltage',
+          y_range_name: 'voltage'
+        });
+
+
       });
 
-      //wheelVelocityCommandSource.change.emit();
-    
+    wheelPlots.forEach((wheelPlot, i) => {
+      addPlot(wheelPlot[0], wheelPlot[1]);
     });
+
+    remote.on('rover_wheel_status', 100, (key, wheelStatusMessage) => {
+      //console.log(wheelStatusMessage);
+      Object.keys(wheelStatusMessage).forEach(k => {
+        if(k === 'timestamp') {
+          wheelPlots.forEach(wheelPlot => {
+            wheelPlot[1][0].data.timestamp.push(wheelStatusMessage.timestamp);
+          });
+
+          return;
+        }
+        
+        if(k === 'angle*' || k === 'velocity' || k === 'torque*' || k === 'temperature*') {
+          // wheel data is
+          // 3 - back left
+          // 2 - front left
+          // 0 - back right
+          // 1 - front right
+
+          backRightWheelStatus.data[k].push(rpmToVelocity(wheelStatusMessage[k][0]));
+          frontRightWheelStatus.data[k].push(rpmToVelocity(wheelStatusMessage[k][1]));
+          frontLeftWheelStatus.data[k].push(rpmToVelocity(wheelStatusMessage[k][2]));
+          backLeftWheelStatus.data[k].push(rpmToVelocity(wheelStatusMessage[k][3]));
+        }
+      });
+    });
+
+    /*remote.on('rover_wheel_voltage_output', 50, (key, message) => {
+      backRightWheelVoltage.data.timestamp.push(message.timestamp);
+      frontRightWheelVoltage.data.timestamp.push(message.timestamp);
+      frontLeftWheelVoltage.data.timestamp.push(message.timestamp);
+      backLeftWheelVoltage.data.timestamp.push(message.timestamp);
+
+      console.log('voltage', message);
+  // 0 - back right
+    // 1 - front right
+    // 2 - front left
+    // 3 - back left 
+
+      backRightWheelVoltage.data.voltage.push(message.voltage[0]);
+      frontRightWheelVoltage.data.voltage.push(message.voltage[1]);
+      frontLeftWheelVoltage.data.voltage.push(message.voltage[2]);
+      backLeftWheelVoltage.data.voltage.push(message.voltage[3]);
+    });*/
+
+    /*
+frontLeftMotorOutput,
+    frontRightMotorOutput,
+    backLeftMotorOutput,
+    backRightMotorOutput
+
+
+
+
+
+    */
+
+    remote.subscribe('rover_control_state', (key, message) => {
+      //console.log('rover_control_state', message);
+      lastTimestamp = message.timestamp;
+      backRightWheelVoltage.data.timestamp.push(message.timestamp);
+      frontRightWheelVoltage.data.timestamp.push(message.timestamp);
+      frontLeftWheelVoltage.data.timestamp.push(message.timestamp);
+      backLeftWheelVoltage.data.timestamp.push(message.timestamp);
+
+      backRightWheelState.data.timestamp.push(message.timestamp);
+      frontRightWheelState.data.timestamp.push(message.timestamp);
+      frontLeftWheelState.data.timestamp.push(message.timestamp);
+      backLeftWheelState.data.timestamp.push(message.timestamp);
+
+      
+      backRightWheelState.data.output.push(message.backRightOutput);
+      frontRightWheelState.data.output.push(message.frontRightOutput);
+      frontLeftWheelState.data.output.push(message.frontLeftOutput);
+      backLeftWheelState.data.output.push(message.backLeftOutput);
+
+      velocitySource.data.timestamp.push(message.timestamp);
+      velocitySource.data.x.push(message.velocityX * -1);
+      velocitySource.data.y.push(message.velocityY * -1);
+
+      velocityTrajectorySource.data.timestamp.push(message.timestamp);
+      velocityTrajectorySource.data.x.push(message.targetChassisVelocityX);
+      velocityTrajectorySource.data.y.push(message.targetChassisVelocityY);
+
+      /*console.log('outputs!!');
+      console.log(message.backRightOutput);
+      console.log(message.frontRightOutput);
+      console.log(message.frontLeftOutput);
+      console.log(message.backLeftOutput);*/
+      
+      backRightWheelVoltage.data.voltage.push(message.backRightMotorOutput);
+      frontRightWheelVoltage.data.voltage.push(message.frontRightMotorOutput);
+      frontLeftWheelVoltage.data.voltage.push(message.frontLeftMotorOutput);
+      backLeftWheelVoltage.data.voltage.push(message.backLeftMotorOutput);
+
+
+      backRightWheelState.data.velocityTarget.push(message.wheelRearRightSetpoint);
+      frontRightWheelState.data.velocityTarget.push(message.wheelFrontRightSetpoint);
+      frontLeftWheelState.data.velocityTarget.push(message.wheelFrontLeftSetpoint);
+      backLeftWheelState.data.velocityTarget.push(message.wheelRearLeftSetpoint);
+    }, true);
 
     function update() {
       addedPlots.forEach(plot => {
@@ -1452,8 +1545,6 @@ var container = document.querySelector('main > div.container');
 function addPlot(plot, source = []) {
   var d = document.createElement('div');
 
-  source._enableUpdate = false;
- 
   d.innerHTML = template('plotTpl', {});
 
   Bokeh.Plotting.show(plot, d.querySelector('.plot-container'));
@@ -1462,6 +1553,11 @@ function addPlot(plot, source = []) {
     .querySelector('.plot-container');
   
   source = Array.isArray(source) ? source : [source];
+  
+  source.forEach(source => {
+    source._enableUpdate = false;
+  });
+
   addedPlots.push([el, source]);
 
 

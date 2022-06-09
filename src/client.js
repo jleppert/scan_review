@@ -503,6 +503,21 @@ function initUI() {
       wheelMotorFeedforwardkV: [0, 1000, 0.001]
     };
 
+    var radarParamsConstraints = {
+      startFrequency: [23.5, 6000, 1, 'MHz'],
+      stepFrequency: [1, 100, 1, 'MHz'],
+      frequencyCount: [10, 501, 1],
+      intermediateFreq: [1, 50, 1, 'MHz'],
+      transmitPower: [-30, 15, 1, 'dbM'],
+      loPower: [-30, 15, 1, 'dbM'],
+      sampleCount: [1024, 16384, 8],
+      settlingTimeInMicro: [100, 500000, 1, 'microseconds'],
+      bufferSampleDelay: [0, 16384, 16, 'bytes'],
+      sampleTimeInMicro: [1, 1000, 1, 'microseconds'],
+      stepTriggerTimeInMicro: [1, 1000, 1, 'microseconds'],
+      synthWarmupTimeInMicro: [1000, 10000000, 100, 'microseconds']
+    };
+
     var scanPlanningParams = {
       selectedPattern: null,
       
@@ -966,15 +981,35 @@ function initUI() {
           .onFinishChange(() => {
             console.log('value changed!!');
 
-            remote.setParameters(params, setParams => {
+            remote.setParameters(params, 'rover_parameters', (setParams) => {
               console.log('set new params', setParams);
             });
           });
-
-
       });
 
       tuning.open();
+
+      remote.getRadarParameters(radarParams => {
+        var radar = paramsGui.addFolder('Radar Parameters');
+
+        Object.keys(radarParams).forEach(key => {
+          if(key === 'timestamp') return;
+
+          var c = radarParamsConstraints[key];
+
+          radarParams[key] = radarParams[key] || 0;
+
+          radar.add(radarParams, key).min(c[0]).max(c[1]).step(c[2])
+            .onFinishChange(() => {
+              
+              remote.setRadarParameters(radarParams, 'radar_parameters', (setRadarParams) => {
+                console.log('set new radar params', setRadarParams);
+              });
+            });
+        });
+
+        radar.open();
+      });
 
       initScanPatternUI();
     });

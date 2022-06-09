@@ -187,10 +187,14 @@ var sock = shoe(function(stream) {
       cb(unpack((await redisClient.getBuffer('rover_parameters')))); 
     },
 
-    setParameters: async function(params = {}, cb = function() {}) {
+    getRadarParameters: async function(cb = function() {}) {
+      cb(unpack((await redisClient.getBuffer('radar_parameters'))));
+    },
+
+    setParameters: async function(params = {}, key, cb = function() {}) {
       params = new Map(Object.entries(params));
 
-      var currentParams = unpack((await redisClient.getBuffer('rover_parameters')));
+      var currentParams = unpack((await redisClient.getBuffer(key)));
 
       var startupTimestamp = parseInt(await redisClient.get('rover_startup_timestamp'));
 
@@ -198,13 +202,13 @@ var sock = shoe(function(stream) {
 
       var packedParams = packer.pack(params);
 
-      console.log('current params', currentParams, 'new params', params);
+      console.log('setting params for key', key, 'current params', currentParams, 'new params', params);
 
-      await redisClient.set(Buffer.from('rover_parameters'), packedParams);
+      await redisClient.set(Buffer.from(key), packedParams);
 
-      await redisClient.publish(Buffer.from('rover_parameters'), packedParams);
+      await redisClient.publish(Buffer.from(key), packedParams);
 
-      cb(unpack((await redisClient.getBuffer('rover_parameters')))); 
+      cb(unpack((await redisClient.getBuffer(key)))); 
     },
 
     startLogging: async function(cb = function() {}) {

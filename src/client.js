@@ -511,6 +511,7 @@ function initUI() {
       transmitPower: [-30, 15, 1, 'dbM'],
       loPower: [-30, 15, 1, 'dbM'],
       sampleCount: [1024, 16384, 8],
+      channelCount: [2, 2, 1],
       settlingTimeInMicro: [100, 500000, 1, 'microseconds'],
       bufferSampleDelay: [0, 16384, 16, 'bytes'],
       sampleTimeInMicro: [1, 1000, 1, 'microseconds'],

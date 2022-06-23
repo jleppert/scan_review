@@ -1003,8 +1003,12 @@ function initUI() {
           radar.add(radarParams, key).min(c[0]).max(c[1]).step(c[2])
             .onFinishChange(() => {
               
-              remote.setRadarParameters(radarParams, 'radar_parameters', (setRadarParams) => {
+              remote.setParameters(radarParams, 'radar_parameters', (setRadarParams) => {
                 console.log('set new radar params', setRadarParams);
+
+                remote.restartRadarProcess((err, result) => {
+                  console.log('restarted radar process', err, result);
+                });
               });
             });
         });

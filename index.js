@@ -4,6 +4,7 @@ var fs            = require('fs'),
     path          = require('path'),
     express       = require('express'),
     http          = require('http'),
+    request       = require('request'),
     path          = require('path'),
     dnode         = require('dnode'),
     uuid          = require('uuid').v4,
@@ -198,7 +199,7 @@ var sock = shoe(function(stream) {
 
       var startupTimestamp = parseInt(await redisClient.get('rover_startup_timestamp'));
 
-      params.set('timestamp', microtime.now() - startupTimestamp);  
+      params.set('timestamp', 0);  
 
       var packedParams = packer.pack(params);
 
@@ -209,6 +210,13 @@ var sock = shoe(function(stream) {
       await redisClient.publish(Buffer.from(key), packedParams);
 
       cb(unpack((await redisClient.getBuffer(key)))); 
+    },
+
+    restartRadarProcess: function(cb = function() {}) {
+      request('http://radar:8081/restart', { json: true }, (err, res, body) => {
+        if(err) return cb(err.toString());
+        cb(false, body);
+      });
     },
 
     startLogging: async function(cb = function() {}) {

@@ -53,14 +53,26 @@ var t = hrTime[0] * 1000000 + hrTime[1] / 1000;
   var microtime = require('microtime');
 
   var x = new Map();
-  x.set('timestamp', microtime.now() - current);
+  x.set('timestamp', 0);
+  x.set('startFrequency', 1500.00);
+  x.set('stepFrequency', 20.00);
+  x.set('frequencyCount', 151);
+  x.set('intermediateFreq', 32.00);
+  x.set('transmitPower', -10.0);
+  x.set('loPower', 15);
+  x.set('sampleCount', 2048);
+  x.set('channelCount', 2);
+  x.set('stepTriggerTimeInMicro', 50);
+  
+  x.set('synthWarmupTimeInMicro', 1000000 * 5);
+
+  x.set('settlingTimeInMicro', 500);
+  x.set('bufferSampleDelay', 0);
 
 
- 
-  x.set('velocity', [0, 30, 0, 0]);
-
+  
   console.log(x, packer.pack(x));
-  await client.set(Buffer.from('rover_wheel_velocity_command'), packer.pack(x));
+  await client.set(Buffer.from('radar_parameters'), packer.pack(x));
   /*
   setInterval(async function() {
     var data = await client.getBuffer(Buffer.from("rover_wheel_encoder"));

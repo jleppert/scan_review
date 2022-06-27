@@ -209,7 +209,9 @@ var sock = shoe(function(stream) {
     setParameters: async function(params = {}, key, cb = function() {}) {
       params = new Map(Object.entries(params));
 
-      var currentParams = unpack((await redisClient.get(Buffer.from(key))));
+      var currentParams = unpack((await redisClient.get(
+        redisClient.commandOptions({ returnBuffers: true }),
+        key)));
 
       var startupTimestamp = parseInt(await redisClient.get('rover_startup_timestamp'));
 
@@ -219,11 +221,19 @@ var sock = shoe(function(stream) {
 
       console.log('setting params for key', key, 'current params', currentParams, 'new params', params);
 
-      await redisClient.set(Buffer.from(key), packedParams);
+      await redisClient.set(redisClient.commandOptions({ returnBuffers: true }),
+        key, packedParams);
 
-      await redisClient.publish(Buffer.from(key), packedParams);
+      await redisClient.publish(
+        redisClient.commandOptions({ returnBuffers: true }),
+        key,
+        packedParams
+      );
 
-      cb(unpack((await redisClient.get(Buffer.from(key))))); 
+      cb(unpack((await redisClient.get(
+        redisClient.commandOptions({ returnBuffers: true }),
+        key
+      )))); 
     },
 
     restartRadarProcess: function(cb = function() {}) {

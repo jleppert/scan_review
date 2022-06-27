@@ -237,6 +237,10 @@ function initUI() {
       data: { timestamp: [], x: [], y: [] }
     });
 
+    var radarSampleSource = new Bokeh.ColumnDataSource({
+      data: { timestamp: [], x: [], y: [] }
+    });
+
     var trajectorySource = new Bokeh.ColumnDataSource({
       data: { timestamp: [], x: [], y: [] }
     });
@@ -272,6 +276,12 @@ function initUI() {
       line_width: 2
     });
 
+    const radarSamplePoint = new Bokeh.Circle({
+      x: { field: "x" },
+      y: { field: "y" },
+      fill_color: '#000',
+    });
+
     const xyLineTrajectory = new Bokeh.Line({
       x: { field: "x" },
       y: { field: "y" },
@@ -281,11 +291,13 @@ function initUI() {
 
     var xyLineGlyphRenderer = positionPlot.add_glyph(xyLine, positionSource);
     var xyLineTrajectoryGlyphRenderer = positionPlot.add_glyph(xyLineTrajectory, trajectorySource);
+    var radarSamplePointGlyphRenderer = positionPlot.add_glyph(radarSamplePoint, radarSampleSource);
 
     var positionLegend = new Bokeh.Legend({
       items: [
         new Bokeh.LegendItem({ label: { value: 'Estimate' }, renderers: [xyLineGlyphRenderer] }),
-        new Bokeh.LegendItem({ label: { value: 'Trajectory' }, renderers: [xyLineTrajectoryGlyphRenderer] })
+        new Bokeh.LegendItem({ label: { value: 'Trajectory' }, renderers: [xyLineTrajectoryGlyphRenderer] }),
+        new Bokeh.LegendItem({ label: { value: 'Radar Sample Point' }, renderers: [radarSamplePointGlyphRenderer] })
       ]
     });
 
@@ -436,7 +448,7 @@ function initUI() {
 
     accelerationPlot.add_layout(new Bokeh.LinearAxis({ y_range_name: 'acceleration_theta', axis_label: 'accel_θ (radian/sec)' }), 'left');
 
-    addPlot(positionPlot, positionSource);
+    addPlot(positionPlot, [positionSource, radarSampleSource]);
     addPlot(xPositionPlot, [xSource, xTrajectorySource]);
     addPlot(yPositionPlot, [ySource, yTrajectorySource]);
     addPlot(velocityPlot, [velocitySource, velocityTrajectorySource]);
@@ -460,7 +472,7 @@ function initUI() {
     var paramsGui;
 
     var paramsConstraints = {
-      maxVelocity: [0, 1, 0.1, 'meters/sec'],
+      maxVelocity: [0, 1, 0.01, 'meters/sec'],
       maxAcceleration: [0, 1, 0.01, 'meters/sec^2'],
       maxAngularVelocity: [0, 2 * Math.PI, 0.1, 'radians/sec'],
       maxAngularAcceleration: [0, 2 * Math.PI, 0.1, 'radians/sec^2'],
@@ -541,7 +553,7 @@ function initUI() {
         var trajectory = {
           waypoints: [],
           maxAcceleration: 0.1,
-          maxVelocity: 0.3
+          maxVelocity: 0.05
         };
 
         var pattern = {
@@ -1185,6 +1197,12 @@ function initUI() {
       }
 
     });
+
+    remote.subscribe('radar_sample_point', (key, samplePoint) => {
+      radarSampleSource.data.timestamp.push(samplePoint.timestamp);
+      radarSampleSource.data.x.push(samplePoint.pose.pos[0] * flip);
+      radarSampleSource.data.y.push(samplePoint.pose.pos[1] * flip);
+    }, true);
 
     var lastTimestamp = 0;
     var filter = new LowPassFilter(0.5), lastVelocity;

@@ -77,7 +77,7 @@ app.use(express.static('data'));
 
 var server = http.createServer(app);
 
-var redisClient = redis.createClient('/var/run/redis/redis-server.sock');
+var redisClient = redis.createClient();
 redisClient.on('error', (err) => console.log('Redis Client Error', err));
 
 var remotes = {},
@@ -117,7 +117,7 @@ var sock = shoe(function(stream) {
         obj: JSON.parse((await redisClient.get('rover_pose_config')).toString()),
         basePoses: await (async function() {
           return ((await redisClient.keys('rover_base_pose-*')) || []).map(key => async function() {
-            return (await redisClient.getBuffer(key));
+            return (await redisClient.get(key));
           });
         })()
       };
@@ -139,7 +139,15 @@ var sock = shoe(function(stream) {
 
       if(id) clearInterval(id);
       id = setInterval(async () => {
-        cb(key, unpack((await redisClient.getBuffer(key))));
+        try {
+          cb(key, unpack((await redisClient.get(
+            redisClient.commandOptions({ returnBuffers: true }),
+            key
+          ))));
+
+        } catch(e) {
+          console.log('Error getting key', key, e.toString());
+        }
       }, rateInMs);
 
       remote.timers[`${key}_${rateInMs}`] = id;
@@ -154,7 +162,7 @@ var sock = shoe(function(stream) {
     },
 
     get: async function(key, cb = function() {}) {
-      var val = (await redisClient.getBuffer(Buffer.from(key)));
+      var val = (await redisClient.get(Buffer.from(key)));
 
       if(val) return cb(val.toString());
       cb();
@@ -185,17 +193,23 @@ var sock = shoe(function(stream) {
     },
 
     getParameters: async function(cb = function() {}) {
-      cb(unpack((await redisClient.getBuffer('rover_parameters')))); 
+      cb(unpack((await redisClient.get(
+        redisClient.commandOptions({ returnBuffers: true }),
+        'rover_parameters'
+      ))));
     },
 
     getRadarParameters: async function(cb = function() {}) {
-      cb(unpack((await redisClient.getBuffer('radar_parameters'))));
+      cb(unpack((await redisClient.get(
+        redisClient.commandOptions({ returnBuffers: true }),
+        'radar_parameters'
+      ))));
     },
 
     setParameters: async function(params = {}, key, cb = function() {}) {
       params = new Map(Object.entries(params));
 
-      var currentParams = unpack((await redisClient.getBuffer(key)));
+      var currentParams = unpack((await redisClient.get(Buffer.from(key))));
 
       var startupTimestamp = parseInt(await redisClient.get('rover_startup_timestamp'));
 
@@ -209,7 +223,7 @@ var sock = shoe(function(stream) {
 
       await redisClient.publish(Buffer.from(key), packedParams);
 
-      cb(unpack((await redisClient.getBuffer(key)))); 
+      cb(unpack((await redisClient.get(Buffer.from(key))))); 
     },
 
     restartRadarProcess: function(cb = function() {}) {
@@ -258,7 +272,7 @@ var sock = shoe(function(stream) {
 
         var lastRecord;
         logIndex.keys[key].intervalId = setInterval(async () => {
-          var record = (await redisClient.getBuffer(Buffer.from(key)));
+          var record = (await redisClient.get(Buffer.from(key)));
           
           if(deDupe) {  
         

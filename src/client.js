@@ -472,8 +472,8 @@ function initUI() {
     var paramsGui;
 
     var paramsConstraints = {
-      maxVelocity: [0, 1, 0.01, 'meters/sec'],
-      maxAcceleration: [0, 1, 0.01, 'meters/sec^2'],
+      maxVelocity: [0, 4, 0.01, 'meters/sec'],
+      maxAcceleration: [0, 3, 0.01, 'meters/sec^2'],
       maxAngularVelocity: [0, 2 * Math.PI, 0.1, 'radians/sec'],
       maxAngularAcceleration: [0, 2 * Math.PI, 0.1, 'radians/sec^2'],
       trackWidth: [0.001, 1, 0.001, 'meters'],
@@ -974,8 +974,10 @@ function initUI() {
       }
     };
     
+    var roverParams = {}; 
     remote.getParameters(params => {
       console.log('current params', params);
+      roverParams = params;
       if(paramsGui) paramsGui.destory();
 
       paramsGui = new dat.gui.GUI({ width: 400 });
@@ -1074,8 +1076,25 @@ function initUI() {
             runPattern.remove();
             runPattern = null;
           }
+          
+          var selectedPattern;
+          if(selectedPattern = patterns.find(p => p.name === scanPlanningParams.selectedPattern)) {
+            var patternParams = {
+              maxVelocity: selectedPattern.trajectory.maxVelocity || roverParams.maxVelocity,
+              maxAcceleration: selectedPattern.trajectory.maxAcceleration || roverParams.maxAcceleration
+            };
+            
+            
+            scanPlanning.add(patternParams, 'maxVelocity').min(paramsConstraints.maxVelocity[0]).max(paramsConstraints.maxVelocity[1]).step(paramsConstraints.maxVelocity[2]).onFinishChange(() => {
+              selectedPattern.trajectory.maxVelocity = patternParams.maxVelocity;
+              remote.set('rover_scan_patterns', JSON.stringify(patterns), () => { });
+            });
+            scanPlanning.add(patternParams, 'maxAcceleration').min(paramsConstraints.maxAcceleration[0]).max(paramsConstraints.maxAcceleration[1]).step(paramsConstraints.maxAcceleration[2]).onFinishChange(() => {
+              selectedPattern.trajectory.maxAcceleration = patternParams.maxAcceleration;
+              remote.set('rover_scan_patterns', JSON.stringify(patterns), () => { });
+            });
 
-          if(patterns.find(p => p.name === scanPlanningParams.selectedPattern)) {
+             
             createOrEdit = scanPlanning.add(scanPlanningParams, 'createOrEdit').name('Edit Pattern');
             generateTrajectory = scanPlanning.add(scanPlanningParams, 'generateTrajectory').name('Generate Trajectory Path');
             runPattern = scanPlanning.add(scanPlanningParams, 'run').name('Run Pattern');

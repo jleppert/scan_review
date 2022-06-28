@@ -586,20 +586,39 @@ function initUI() {
           updateScanPattern();
         });
 
+        var sampleResolutionValue = 5; // in cm
+        modalEl.querySelector('#sampleResolutionRange').addEventListener('input', function() {
+          sampleResolutionValue = this.value;
+          modalEl.querySelector('.sample-resolution-label').innerText = `${sampleResolutionValue} cm`;
+          updateScanPattern();
+        });
+
+
         var scanPatternTypeEl = modalEl.querySelector('#patternType');
         debugger;
 
         var scanPatternTypeOptions = {
           'ZigZag Columns & Rows': ['zigzagRows2d', 'zigzagColumns2d'],
-          'ZigZag Columns': ['zigzagColumns'],
+          'ZigZag Columns': ['zigzagColumns2d'],
           'ZigZag Rows': ['zigzagRows2d'],
           'ZigZag Diagonal': ['zigzagDiagonal2d'],
           'Columns': ['columns2d'],
-          'Rows': ['rowss2d'],
+          'Rows': ['rows2d'],
           'Interleave Columns': ['interleaveColumns2d'],
           'Interleave Rows': ['interleaveRows2d'],
           'Outward Spiral': ['spiral2d'],
           'Hilbert': ['hilbert2d']
+        };
+
+        var scanPatternTypeOrder = {
+          'zigzagRows2d': 1,
+          'zigzagColumns2d': 0,
+          'columns2d': -1,
+          'rows2d': -1,
+          'interleaveColumns2d': -1,
+          'interleaveRows2d': -1,
+          'spiral2d': -1,
+          'hilbert2d': -1
         };
 
         Object.keys(scanPatternTypeOptions).forEach(key => {
@@ -656,7 +675,7 @@ function initUI() {
           modalBody,
           {
             center: [0, 0],
-            zoom: 0,
+            zoom: 10,
             crs: L.Util.extend(L.CRS.Simple, {
 	            //transformation: new L.Transformation(-1,0,-1,0)
             }) 
@@ -799,8 +818,32 @@ function initUI() {
        
         var scanBoundsLayer;
         var scanLayer = L.polyline([], { color: 'red' });
+        var radarSampleLayer = L.layerGroup();
         
+        radarSampleLayer.addTo(map);
         scanLayer.addTo(map);
+
+        window.radarSampleLayer = radarSampleLayer;
+
+        function getLinearDistance(points) {
+          var distance = 0;
+          
+          points.forEach((pt, i) => {
+            if(i === (points.length - 1)) return;
+            var a = pt, b = points[i + 1];
+
+            distance += Math.sqrt(
+              Math.pow(
+                Math.abs(a[0] - b[0]), 
+              2) + 
+              Math.pow(
+                Math.abs(a[1] - b[1]),
+              2)
+            ); 
+          });
+
+          return distance;
+        }
 
         function updateScanPattern() {
           var layer = scanBoundsLayer;
@@ -819,9 +862,13 @@ function initUI() {
               stepInX = xSize / stepSize,
               stepInY = ySize / stepSize;
           
-          var points = [];
+          radarSampleLayer.clearLayers();
+
+          var patternPoints = [];
+          var patternSamplePoints = [];
 
           scanPatternType.forEach(patternType => {
+            var points = [];
 
             Array.from(gi[patternType](Math.floor(stepInX) + 1, Math.floor(stepInY) + 1)).forEach((point, i) => {
               
@@ -833,10 +880,69 @@ function initUI() {
               );
             });
 
-            points.push([0, 0]);
+            var minPoint = 
+              [
+                Math.min.apply(Math, points.map(pt => pt[0])),
+                Math.min.apply(Math, points.map(pt => pt[1]))
+              ],
+              maxPoint = 
+              [
+                Math.max.apply(Math, points.map(pt => pt[0])),
+                Math.max.apply(Math, points.map(pt => pt[1]))
+              ];
+
+            var patternSize = [
+              maxPoint[0] - minPoint[0],
+              maxPoint[1] - minPoint[1]
+            ];
+
+            var patternBoxDelta = [
+              xSize - patternSize[0],
+              ySize - patternSize[1]
+            ];
+
+            points = points.map(pt => [pt[0] + (patternBoxDelta[0] / 2), pt[1] + (patternBoxDelta[1] / 2)]);
+
+            function filterPoints(points, stride = 0) {
+              if(stride === -1) return [points];
+
+              var lineSegments = [];
+
+              points.forEach((pt, i) => {
+                if(i === 0) return lineSegments.push([pt]);
+
+                var lastPt = points[i - 1];
+
+                if((Math.abs(lastPt[0] - pt[0]) > 0) && stride === 0) return lineSegments.push([pt]);
+                if((Math.abs(lastPt[1] - pt[1]) > 0) && stride === 1) return lineSegments.push([pt]);
+                
+                lineSegments[lineSegments.length - 1].push(pt);
+              });
+
+              return lineSegments;
+            }
+
+            var lineSegments = filterPoints(points, scanPatternTypeOrder[patternType]);
+            
+            lineSegments.forEach(pts => {
+              var distance = getLinearDistance(pts);
+            
+              var linearSampleRate = sampleResolutionValue * 0.01;
+              console.log(pts, distance / linearSampleRate, 0, linearSampleRate);
+              var samplePoints = lineLerp(pts, distance / linearSampleRate, 0, linearSampleRate);
+            
+              samplePoints.forEach(point => {
+                radarSampleLayer.addLayer(L.circleMarker(point, {
+                  radius: 2
+                }));
+              });
+            });
+
+            patternSamplePoints.push(lineSegments);
+            patternPoints = patternPoints.concat(points);
           });
 
-          scanLayer.setLatLngs(points);
+          scanLayer.setLatLngs(patternPoints);
 
           if(type === 'polygon') {
             // TODO: joins, hole support
@@ -858,6 +964,8 @@ function initUI() {
             };
           });
 
+          pattern.trajectory.samplePoints = patternSamplePoints;
+
           console.log(pattern);
           
           scanLayer.addTo(map);
@@ -875,7 +983,7 @@ function initUI() {
               });
             });
 
-            debugger;
+            getDistance(layer.getLatLngs().map(point => [point.lng, point.lat]));
 
             pattern.scanPatterngeojson = layer.toGeoJSON();
           } else if(type === 'rectangle' || type === 'polygon') {
@@ -949,7 +1057,13 @@ function initUI() {
         var bounds = new L.LatLngBounds(southWest, northEast); 
 
         map.setMaxBounds(bounds);
-        map.fitBounds(bounds);
+        //map.fitBounds(bounds);
+        
+        map.fitBounds([
+          [-0.4, -0.4],
+          [0.4, 0.4]
+        ]);
+
         L.simpleGraticule({ 
           interval: 0.2,
           showOriginLabel: true, redraw: 'move' }).addTo(map);

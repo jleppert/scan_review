@@ -77,8 +77,11 @@ app.use(express.static('data'));
 
 var server = http.createServer(app);
 
-var redisClient = redis.createClient();
-redisClient.on('error', (err) => console.log('Redis Client Error', err));
+var redisClient = redis.createClient('/var/run/redis/redis-server.sock');
+redisClient.on('error', err => console.log('redis client error', err));
+redisClient.on('connect', () => console.log('redis client is connect'));
+redisClient.on('reconnecting', () => console.log('redis client is reconnecting'));
+redisClient.on('ready', () => console.log('redis client is ready'));
 
 var remotes = {},
     messageStructs = [];

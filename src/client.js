@@ -1334,8 +1334,8 @@ function initUI() {
 
     remote.subscribe('radar_sample_point', (key, samplePoint) => {
       radarSampleSource.data.timestamp.push(samplePoint.timestamp);
-      radarSampleSource.data.x.push(samplePoint.pose.pos[0] * flip);
-      radarSampleSource.data.y.push(samplePoint.pose.pos[1] * flip);
+      radarSampleSource.data.x.push(samplePoint.pos[0] * flip);
+      radarSampleSource.data.y.push(samplePoint.pos[1] * flip);
     }, true);
 
     var lastTimestamp = 0;

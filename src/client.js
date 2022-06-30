@@ -851,10 +851,10 @@ function initUI() {
 
           var extent = layer.getBounds().toBBoxString().split(',');
 
-          var minX = parseFloat(extent[1]),
-              minY = parseFloat(extent[0]),
-              maxX = parseFloat(extent[3]),
-              maxY = parseFloat(extent[2]);
+          var minY = parseFloat(extent[1]),
+              minX = parseFloat(extent[0]),
+              maxY = parseFloat(extent[3]),
+              maxX = parseFloat(extent[2]);
 
           var xSize = Math.abs(maxX - minX),
               ySize = Math.abs(maxY - minY),
@@ -932,7 +932,7 @@ function initUI() {
               var samplePoints = lineLerp(pts, distance / linearSampleRate, 0, linearSampleRate);
             
               samplePoints.forEach(point => {
-                radarSampleLayer.addLayer(L.circleMarker(point, {
+                radarSampleLayer.addLayer(L.circleMarker([point[1], point[0]], {
                   radius: 2
                 }));
               });
@@ -942,7 +942,7 @@ function initUI() {
             patternPoints = patternPoints.concat(points);
           });
 
-          scanLayer.setLatLngs(patternPoints);
+          scanLayer.setLatLngs(patternPoints.map(p => [p[1], p[0]]));
 
           if(type === 'polygon') {
             // TODO: joins, hole support
@@ -1228,8 +1228,8 @@ function initUI() {
         console.log('traj!!!', trajectory);
 
         trajectorySource.data.timestamp.push(trajectory.time);
-        trajectorySource.data.x.push(trajectory.pose.translation.x);
-        trajectorySource.data.y.push(trajectory.pose.translation.y);
+        trajectorySource.data.x.push(trajectory.pose.translation.x * -1);
+        trajectorySource.data.y.push(trajectory.pose.translation.y * -1);
 
         return;
 

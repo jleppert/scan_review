@@ -930,7 +930,8 @@ function initUI() {
               var linearSampleRate = sampleResolutionValue * 0.01;
               console.log(pts, distance / linearSampleRate, 0, linearSampleRate);
               var samplePoints = lineLerp(pts, distance / linearSampleRate, 0, linearSampleRate);
-            
+           
+              patternSamplePoints.push([samplePoints]); 
               samplePoints.forEach(point => {
                 radarSampleLayer.addLayer(L.circleMarker([point[1], point[0]], {
                   radius: 2
@@ -938,7 +939,7 @@ function initUI() {
               });
             });
 
-            patternSamplePoints.push(lineSegments);
+            //patternSamplePoints.push(lineSegments);
             patternPoints = patternPoints.concat(points);
           });
 

@@ -1228,8 +1228,8 @@ function initUI() {
         console.log('traj!!!', trajectory);
 
         trajectorySource.data.timestamp.push(trajectory.time);
-        trajectorySource.data.x.push(trajectory.pose.translation.x * -1);
-        trajectorySource.data.y.push(trajectory.pose.translation.y * -1);
+        trajectorySource.data.x.push(trajectory.pose.translation.x);
+        trajectorySource.data.y.push(trajectory.pose.translation.y);
 
         return;
 

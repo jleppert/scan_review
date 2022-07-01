@@ -695,7 +695,7 @@ function initUI() {
           html: poseIcon,
           className: 'rover-pose-map-icon',
           iconSize: [40, 48],
-          iconAnchor: [20, 24]
+          iconAnchor: [40, 48/2]
         });
 
         currentRoverPoseMapMarker = L.marker([0, 0], { 
@@ -1643,6 +1643,10 @@ frontLeftMotorOutput,
 
 
     */
+
+    remote.subscribe('radar_process_line', (key, message) => {
+      console.log('got process line!', message);
+    }, true);
 
     remote.subscribe('rover_control_state', (key, message) => {
       //console.log('rover_control_state', message);

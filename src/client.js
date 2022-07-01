@@ -867,6 +867,8 @@ function initUI() {
           var patternPoints = [];
           var patternSamplePoints = [];
 
+          pattern.trajectory.samplePoints = [];
+
           scanPatternType.forEach(patternType => {
             var points = [];
 
@@ -929,7 +931,7 @@ function initUI() {
             
               var linearSampleRate = sampleResolutionValue * 0.01;
               console.log(pts, distance / linearSampleRate, 0, linearSampleRate);
-              var samplePoints = lineLerp(pts, distance / linearSampleRate, 0, linearSampleRate);
+              var samplePoints = lineLerp(pts, Math.ceil(distance / linearSampleRate), 0, linearSampleRate);
            
               patternSamplePoints.push([samplePoints]); 
               samplePoints.forEach(point => {
@@ -965,7 +967,7 @@ function initUI() {
             };
           });
 
-          pattern.trajectory.samplePoints = patternSamplePoints;
+          pattern.trajectory.samplePoints.push(patternSamplePoints);
 
           console.log(pattern);
           

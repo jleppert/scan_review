@@ -14,6 +14,7 @@ var fs            = require('fs'),
     microtime     = require('microtime'),
     EventEmitter  = require('events'),
     babelify      = require('babelify'),
+    babelPreset   = require('@babel/preset-env'),
     browserify    = require('browserify-middleware');
 
 var app = express();
@@ -26,7 +27,7 @@ app.use('/client.js',
         [babelify, {
           global: true,
           ignore: [/\/node_modules\/(?!\@thi.ng\/)/],
-          presets: ['@babel/preset-env']
+          presets: [babelPreset]
         }]
       ]
     }, {
@@ -72,8 +73,8 @@ app.use('/vendor.js', (req, res) => {
 
 });
 
-app.use(express.static('static'));
-app.use(express.static('data'));
+app.use(express.static(path.join(__dirname, 'static')));
+app.use(express.static(path.join(__dirname, 'data')));
 
 var server = http.createServer(app);
 

@@ -1,5 +1,6 @@
 require('regenerator-runtime/runtime');
 var dnode           = require('dnode'),
+    path            = require('path'),
     shoe            = require('shoe'),
     reconnect       = require('reconnect/shoe'),
     progressBar     = require('nprogress'),
@@ -18,12 +19,26 @@ var dnode           = require('dnode'),
     extend          = require('deep-extend'),
     greinerHormann  = require('greiner-hormann'),
     lineLerp        = require('line-interpolate-points'),
+    request         = require('request'),
+    Modal           = require('modal-vanilla'),
+    
+    colorbrewer     = require('colorbrewer'),
+    colorLerp       = require('color-interpolate'),
+    colorParse      = require('color-parse'),
+    smoothstep      = require('smoothstep'),
+    ndarray         = require('ndarray'),
+    
     qte             = require('quaternion-to-euler');
 
 window.L = L;
 require('./L.SimpleGraticule.js');
 require('leaflet-rotatedmarker');
 require('leaflet-draw');
+
+var BokehNDArray  = Bokeh.require('core/util/ndarray');
+var BokehEvents   = Bokeh.require('core/bokeh_events');
+var BokehEnums    = Bokeh.require('core/enums');
+var BokehTable    = Bokeh.require('models/widgets/tables');
 
 var flip = -1;
 
@@ -171,6 +186,44 @@ function initUI() {
       height: 500,
       background_fill_color: '#F2F2F7',
       output_backend: 'webgl'
+    });
+
+    var lineScanSource = new Bokeh.ColumnDataSource({data: {
+      timestamp: [],
+      scanId: [],
+      dataPath: [],
+      fileName: [],
+      patternIndex: [],
+      lineIndex: [],
+      plannedSampleCount: [],
+      actualSampleCount: [],
+      processStatus: [],
+      scanStatus: []
+    }});
+
+    var lineScanTable = new BokehTable.DataTable({
+      width: initialWidth,
+      height: 300,
+      source: lineScanSource,
+      index_position: null,
+      selectable: true,
+      columns: ['scanId', 'dataPath', 'fileName', 'patternIndex', 'lineIndex', 'plannedSampleCount', 'actualSampleCount', 'processStatus', 'scanStatus'].map((field) => new BokehTable.TableColumn({title: field, field}))
+    });
+
+    var selectedLineSourceIndex;
+    lineScanSource.connect(
+      lineScanSource.selected.change, () => {
+        selectedLineSourceIndex = null;
+        if(!lineScanSource.selected.indices.length) return; 
+        var idx = lineScanSource.selected.indices[0];
+
+        if(lineScanSource.data.processStatus[idx] === 'complete') {
+          lineScanTableContainer.querySelector('.view-scan-button').classList.remove('hide');
+          selectedLineSourceIndex = idx;
+        } else {
+          lineScanTableContainer.querySelector('.view-scan-button').classList.add('hide');
+          selectedLineSourceIndex = null;
+        }
     });
 
     tools.forEach(t => {
@@ -449,6 +502,240 @@ function initUI() {
     accelerationPlot.add_layout(new Bokeh.LinearAxis({ y_range_name: 'acceleration_theta', axis_label: 'accel_θ (radian/sec)' }), 'left');
 
     addPlot(positionPlot, [positionSource, radarSampleSource]);
+    
+    window.lineScanTable = lineScanTable;
+    var lineScanTableContainer = addPlot(lineScanTable, [], 'tableTpl');
+    lineScanTableContainer.querySelector('.view-scan-button').addEventListener('click', () => {
+     
+      //var selectedDataPath = '/home/johnathan/4-bg.hdf5';
+      var selectedDataPath = path.join(lineScanSource.data.dataPath[selectedLineSourceIndex], lineScanSource.data.fileName[selectedLineSourceIndex]);
+      debugger;
+      remote.getScanProfile(selectedDataPath, (data, props) => {
+         
+        var container = document.createElement('div');
+        container.innerHTML = template('plotModal', {});
+        
+        var canvas = document.createElement('canvas');
+        canvas.width = props.sampleCount;
+        canvas.height = props.profileCount;
+
+        canvas.style.width = canvas.width + 'px';
+        canvas.style.height = canvas.height + 'px';
+
+        var ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+
+        var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+        var buf = new ArrayBuffer(imageData.data.length);
+        var buf8 = new Uint8ClampedArray(buf);
+        var buf32 = new Uint32Array(buf);
+
+
+          var palette =   ['#000000',
+          '#2b2b2b',
+          '#555555',
+          '#808080',
+          '#aaaaaa',
+          '#d5d5d5',
+          '#ffffff'];
+
+
+        //var palette = ['#820300', '#dc0a00', '#f95d5e', '#fefdfd', '#5c5cff', '#2100cd', '#08005a'].reverse();
+
+        var colormap = colorLerp(palette, smoothstep);
+
+
+        for(var p = 0; p < props.profileCount; p++) {
+
+          for(var i = 0; i < props.sampleCount; i++) {
+
+            var c = colorParse(colormap((data.field[p * props.sampleCount + i] - props.vmin) / (props.vmax - props.vmin))).values;
+
+            buf32[p * props.sampleCount + i] =
+              (255 << 24) |
+              (c[2] << 16) |
+              (c[1] << 8) |
+              c[0];
+          }
+        }
+
+        imageData.data.set(buf8)
+        ctx.putImageData(imageData, 0, 0);
+
+        var initialWidth = window.innerWidth * 0.75;
+
+        var renderCanvas = document.createElement('canvas');
+        renderCanvas.width = initialWidth;
+        renderCanvas.height = 800;
+
+        var rCtx = renderCanvas.getContext('2d');
+        rCtx.imageSmoothingEnabled = false;
+
+        rCtx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, renderCanvas.width, renderCanvas.height);
+        rCtx.globalCompositeOperation = 'copy';
+
+        rCtx.setTransform(
+          0,  renderCanvas.height / renderCanvas.width,
+          -(renderCanvas.width / renderCanvas.height),  0,
+          renderCanvas.height * (renderCanvas.width / renderCanvas.height),
+          0,
+        );
+
+        rCtx.drawImage(renderCanvas, 0, 0);
+
+        // need to flip y axis for bokeh
+        rCtx.resetTransform();
+        rCtx.scale(1, -1);
+        rCtx.drawImage(renderCanvas, 0, renderCanvas.height * -1);
+
+        //container.appendChild(renderCanvas);
+
+        var bScanPlot = new Bokeh.Plotting.figure({
+          title: 'B Scan',
+          width: initialWidth / 2,
+          height: renderCanvas.height,
+          background_fill_color: '#F2F2F7',
+          tools: tools.filter(t => t !== 'crosshair'),
+          x_range: new Bokeh.Range1d({ start: 0, end: props.profileCount * props.xStepSize }),
+          y_range: new Bokeh.Range1d({ start: (props.dt - 2) * 0.1, end: (-2 * 0.1) }),
+          extra_x_ranges: {
+            image: new Bokeh.Range1d({ start: 0, end: renderCanvas.width }),
+            profile: new Bokeh.Range1d({ start: 0, end: props.profileCount })
+          },
+          extra_y_ranges: {
+            image: new Bokeh.Range1d({ start: 0, end: renderCanvas.height })
+          },
+          x_axis_label: 'Profile Distance (meters)',
+          y_axis_label: 'Depth (meters)',
+          output_backend: 'webgl'
+        });
+
+        var aScanPlot = new Bokeh.Plotting.figure({
+          title: 'A Scan',
+          x_range: new Bokeh.Range1d({ end: (props.dt - 2) * 0.1, start: (-2 * 0.1) }),
+          extra_x_ranges: {
+            depth: new Bokeh.Range1d({ start: 0, end: props.sampleCount * props.dt }),
+          },
+          y_range: new Bokeh.Range1d({ start: props.vmin, end: props.vmax }),
+          width: initialWidth,
+          height: 400,
+          background_fill_color: '#F2F2F7',
+          tools: tools
+        });
+
+        var activeProfileSource = new Bokeh.ColumnDataSource({
+          data: { timestamp: [], field: [] }
+        });
+
+        aScanPlot.line({ field: 'timestamp' }, { field: 'field', }, {
+          source: activeProfileSource,
+          line_color: "#43ac6a",
+          line_width: 2,
+          x_range_name: 'depth'
+        });
+
+        var fData = new BokehNDArray.Uint8NDArray(rCtx.getImageData(0, 0, renderCanvas.width, renderCanvas.height).data,
+          [renderCanvas.height, renderCanvas.width]);
+
+        bScanPlot.image_rgba({
+          image: [fData],
+          x: 0,
+          y: 0,
+          level: 'image',
+          dw: renderCanvas.width,
+          dh: renderCanvas.height,
+          x_range_name: 'image',
+          y_range_name: 'image'
+        });
+
+        var profileSource = new Bokeh.ColumnDataSource({
+          data: {
+            x: [...new Array(props.profileCount)].map((v, i) => i + 0.5),
+            y: [...new Array(props.profileCount)].map(() => renderCanvas.height),
+            color: [...new Array(props.profileCount)].map((v, i) => 'rgba(255, 255, 255, 0.5)'),
+          }
+        });
+
+        var vbar = bScanPlot.vbar({
+          source: profileSource,
+          x: { field: 'x' },
+          top: { field: 'y' },
+          line_width: 0.5,
+          x_range_name: 'profile',
+          y_range_name: 'image',
+          width: 1,
+          bottom: 0,
+          line_color: 'rgba(0, 0, 0, 0.5)',
+          fill_color: { field: 'color' },
+          legend_label: 'Show Profile',
+          visible: false
+        });
+
+        //bScanPlot.add_tools(new Bokeh.HoverTool({ mode: 'vline'}));
+        /*bScanPlot.add_tools(
+          new Bokeh.CrosshairTool(
+            {
+              dimensions: 'height',
+              line_width: renderCanvas.width / props.profileCount,
+              line_color: 'rgba(255, 255, 255, 0.2)'
+            }
+          )
+        );*/
+
+        bScanPlot.js_event_callbacks['mousemove'] = [
+          {
+            execute: (e) => {
+              //var profile = profileSource
+              var profileIndex = Math.round((e.x / props.xStepSize) - 0.5);
+
+              console.log('got here', profileIndex);
+              profileSource.data.color = profileSource.data.color.map(() => 'rgba(255, 255, 255, 0)');
+              if(profileSource.data.x[profileIndex]) {
+                profileSource.data.color[profileIndex] = 'rgba(255, 255, 255, 0.5)';
+
+                var startIndex = profileIndex * props.sampleCount,
+                    endIndex   = (profileIndex * props.sampleCount) + props.sampleCount;
+
+                activeProfileSource.data.field = data.field.slice(startIndex, endIndex);
+                activeProfileSource.data.timestamp = [...new Array(props.sampleCount)].map((v, i) => i * props.dt);
+              }
+
+              activeProfileSource.change.emit();
+              profileSource.change.emit();
+            }
+          }
+        ];
+
+        bScanPlot.legend.click_policy = 'hide';
+
+        debugger;
+
+        var colorMapper = new Bokeh.LinearColorMapper({ palette: [...new Array(renderCanvas.height)].map((v, i) => {
+          return colormap(i / renderCanvas.height);
+        }), low: props.vmin, high: props.vmax });
+        var colorBar = new Bokeh.ColorBar({ title: 'Field strength (V/m)', color_mapper: colorMapper, label_standoff: 12, title_standoff: 12 });
+
+        bScanPlot.add_layout(colorBar, 'right');
+
+        var bScanEl = document.createElement('div'),
+            aScanEl = document.createElement('div');
+
+        Bokeh.Plotting.show(bScanPlot, container.querySelector('.b-scan'));
+        Bokeh.Plotting.show(aScanPlot, container.querySelector('.a-scan'));
+
+        var scanModal = new Modal({
+          content: container,
+          footer: false,
+          header: false,
+          animate: false
+        });
+
+        scanModal.show();
+
+      });
+    });
+
     addPlot(xPositionPlot, [xSource, xTrajectorySource]);
     addPlot(yPositionPlot, [ySource, yTrajectorySource]);
     addPlot(velocityPlot, [velocitySource, velocityTrajectorySource]);
@@ -1228,7 +1515,7 @@ function initUI() {
     remote.subscribe('rover_trajectory_profile', (key, trajectories) => {
       trajectories.forEach(trajectory => {
 
-        console.log('traj!!!', trajectory);
+        //console.log('traj!!!', trajectory);
 
         trajectorySource.data.timestamp.push(trajectory.time);
         trajectorySource.data.x.push(trajectory.pose.translation.x);
@@ -1643,8 +1930,104 @@ frontLeftMotorOutput,
 
 
     */
+    
+    var dataPollingIntervalId = 0;
+
+    const regex = /(\d)+-bg.hdf5/gm; 
+
+    function parseFileName(str) {
+      let m;
+
+      var parsed = {
+        valid: false,
+        patternIndex: 0,
+        lineIndex: 0,
+        filename: ''
+      };
+
+      while ((m = regex.exec(str)) !== null) {
+        if (m.index === regex.lastIndex) {
+          regex.lastIndex++;
+        }
+
+        m.forEach((match, groupIndex) => {
+          if(groupIndex === 1) {
+            parsed.valid = true;
+            parsed.lineIndex = parseInt(match);
+            parsed.filename = str; 
+          }
+        });
+      }
+
+      return parsed;
+    }
+
+
+    function updateLineProcessStatus(scanId) {
+      remote.getLineProcessStatus(scanId, (err, status = []) => {
+        if(err) return console.log(err);
+
+        status.forEach(file => {
+          var parsed = parseFileName(file.name);
+
+          if(parsed.valid) {
+            lineScanSource.data.scanId.forEach((scanId, idIndex) => {
+              if(scanId === scanId) {
+                lineScanSource.data.processStatus = lineScanSource.data.processStatus.map((v, pIndex) => {
+                  if(pIndex == idIndex && lineScanSource.data.lineIndex[idIndex] === parsed.lineIndex) {
+                    lineScanSource.data.fileName[idIndex] = file.name;
+                    
+                    return 'complete';
+                  }
+                  return v;
+                });
+              }
+            });
+          }
+        });
+
+        lineScanSource.selected.indices = lineScanSource.selected.indices;
+        lineScanSource.change.emit();
+
+
+        console.log('updated line process status!', status);
+      });
+    }
+
+    window.lineScanSource = lineScanSource;
 
     remote.subscribe('radar_process_line', (key, message) => {
+      if(!message.scanComplete) {
+        remote.getDataProcessingStatus((err, status) => {
+          if(err) return console.log(err);
+          
+          if(!dataPollingIntervalId) {
+            dataPollingIntervalId = setInterval(() => {
+              updateLineProcessStatus(status.start_time);
+            }, 1000);
+          }
+
+          lineScanSource.data.scanId.push(status.start_time);
+          lineScanSource.data.dataPath.push(status.image_dir);
+          lineScanSource.data.timestamp.push(message.timestamp);
+          lineScanSource.data.patternIndex.push(message.patternIndex);
+          lineScanSource.data.lineIndex.push(message.lineIndex);
+          lineScanSource.data.plannedSampleCount.push(message.plannedSamples);
+          lineScanSource.data.actualSampleCount.push(message.actualSamples);
+          lineScanSource.data.fileName.push('');
+          lineScanSource.data.scanStatus.push('in_progress');
+          lineScanSource.data.processStatus.push('processing');
+
+          lineScanSource.change.emit();
+        });
+      } else {
+        lineScanSource.data.scanStatus = lineScanSource.data.scanStatus.map(v => 'complete');
+        lineScanSource.selected.indices = lineScanSource.selected.indices; 
+        
+        lineScanSource.change.emit();
+        clearInterval(dataPollingIntervalId);
+        dataPollingIntervalId = 0;
+      }
       console.log('got process line!', message);
     }, true);
 
@@ -1739,16 +2122,19 @@ frontLeftMotorOutput,
 
 var addedPlots = [];
 
+window.addedPlots = addedPlots;
 var container = document.querySelector('main > div.container');
-function addPlot(plot, source = []) {
+function addPlot(plot, source = [], templateName = 'plotTpl') {
   var d = document.createElement('div');
 
-  d.innerHTML = template('plotTpl', {});
+  console.log(templateName);
+  d.innerHTML = template(templateName, {});
 
   Bokeh.Plotting.show(plot, d.querySelector('.plot-container'));
 
-  var el = container.appendChild(d.firstElementChild)
-    .querySelector('.plot-container');
+  var el = container.appendChild(d.firstElementChild);
+  
+  var plotEl = el.querySelector('.plot-container');
   
   source = Array.isArray(source) ? source : [source];
   
@@ -1756,9 +2142,9 @@ function addPlot(plot, source = []) {
     source._enableUpdate = false;
   });
 
-  addedPlots.push([el, source]);
+  addedPlots.push([plotEl, source]);
 
-
+  return el;
   //plot.frame_width = rect.width;
 
   //plot.properties.height.change.emit();

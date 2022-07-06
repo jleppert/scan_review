@@ -240,6 +240,168 @@ var sock = shoe(function(stream) {
       )))); 
     },
 
+    getScanProfile: function(profileDataFilePath, cb = function() {}) {
+      var profileDataFile = new hdf5.File(profileDataFilePath);
+
+      var sampleCount = profileDataFile.get('raw_proc_data').shape[1];
+
+      var positions = profileDataFile.get('position').to_array();
+
+      var minX = Math.min.apply(Math, positions.map(p => Math.abs(p[0]))),
+          minY = Math.min.apply(Math, positions.map(p => Math.abs(p[1]))),
+          maxX = Math.max.apply(Math, positions.map(p => Math.abs(p[0]))),
+          maxY = Math.max.apply(Math, positions.map(p => Math.abs(p[1])));
+
+      positions = positions.map((p, i) => [p, i]);
+
+      var profileData = { 
+        profile: [], 
+        x: [], 
+        y: [], 
+        time: [], 
+        field: []
+      };
+
+      var profileProps = {
+        vmin: 0,
+        vmax: 0,
+        dt: 0,
+        maxX: 0,
+        maxY: 0,
+        tmin: [],
+        tmax: [],
+        sampleCount: 0,
+        xStepSize: 0.01,
+        yStepSize: 0.01
+      };
+
+      positions = positions.sort((a, b) => {
+        return a[0][1] - b[0][1] || a[0][0] - b[0][0];
+      });
+
+      var profileRawData = profileDataFile.get('raw_proc_data').to_array();
+
+      // filter out no data profiles
+      positions = positions.filter(p => {
+        var pos         = { x: p[0][0], y: p[0][1] },
+            fieldValues = profileRawData[p[1]];
+
+        if(fieldValues.every(s => s === 0)) return false;
+        return true;
+      });
+
+      var avgProfile = new Array(profileRawData[0].length).fill(0);
+
+      profileRawData.forEach(p => {
+        p.forEach((s, i) => {
+          avgProfile[i] = avgProfile[i] + s;
+        });
+      });
+
+      const chunkSize = profileRawData.length;
+      const profileChunks = profileRawData.reduce((resultArray, item, index) => {
+        const chunkIndex = Math.floor(index/chunkSize)
+
+        if(!resultArray[chunkIndex]) {
+          resultArray[chunkIndex] = [];
+        }
+
+        resultArray[chunkIndex].push(item)
+
+        return resultArray
+      }, []).map(chunk => {
+
+        var avgProfile = new Array(profileRawData[0].length).fill(0);
+
+        chunk.forEach(p => {
+          p.forEach((s, i) => {
+            avgProfile[i] = avgProfile[i] + s;
+          });
+        });
+
+        return avgProfile.map(p => p / chunkSize);
+      });
+
+      avgProfile = avgProfile.map(p => p / profileRawData.length);
+
+      var avgStepX = maxX / positions.length;
+      var avgStepY = maxY / positions.length;
+
+      positions.forEach((p, profileCount) => {
+        var pos         = { x: p[0][0], y: p[0][1] },
+            sampleCount = profileDataFile.get('raw_proc_data').shape[1],
+            attrs       = profileDataFile.get('raw_proc_data').attrs,
+            dt          = 299792458.0 / 2 / (Number(attrs.stepFrequency.value) * 1e6);
+
+
+        var xPos = ((avgStepX / maxX) * pos.x) || 0,
+            yPos = ((avgStepY / maxY) * pos.y) || 0;
+
+        var fieldValues = profileRawData[p[1]].map((v, i) => v - avgProfile[i]);
+
+        //var fieldValues = profileRawData[p[1]].map((v, i) => v - profileChunks[Math.floor(p[1] / chunkSize)][i]);
+
+        profileProps.tmin.push(Math.max.apply(Math, fieldValues.map(Math.abs)) * -1);
+        profileProps.tmax.push(Math.max.apply(Math, fieldValues));
+
+        profileData.profile = profileData.profile.concat(new Array(fieldValues.length).fill(profileCount));
+
+        profileData.x = profileData.x.concat(new Array(fieldValues.length).fill(xPos));
+        profileData.y = profileData.y.concat(new Array(fieldValues.length).fill(yPos));
+
+        profileData.time = profileData.time.concat([...new Array(fieldValues.length)].map((v, i) => {
+          return (i / fieldValues.length) * dt;
+        }));
+
+        profileData.field = profileData.field.concat(fieldValues);
+        profileProps.dt = dt;
+        profileProps.sampleCount = sampleCount;
+      });
+
+      profileProps.profileCount = positions.length;
+      profileProps.minX = minX;
+      profileProps.minY = minY;
+      profileProps.maxX = maxX;
+      profileProps.maxY = maxY;
+      profileProps.vmin = Math.max.apply(Math, profileProps.tmin.map(Math.abs)) * -1;
+      profileProps.vmax = Math.max.apply(Math, profileProps.tmax);
+
+      cb(profileData, profileProps);
+    },
+
+    getDataProcessingStatus: function(cb = function() {}) {
+      request('http://localhost:9005/status', (err, res, body) => {
+        if(err) {
+          console.log(err, body);
+          return cb(err.toString());
+        } else {
+          var status = null;
+          
+          try {
+            status = JSON.parse(body);
+          } catch(e) {
+            console.log(e.toString());
+            return cb(err);
+          }
+
+          if(status) cb(null, status);
+        }
+      });
+    },
+
+    getLineProcessStatus: function(scanId, cb = function() {}) {
+      request(`http://localhost/outputjson/${scanId}/img`, { json: true }, (err, res, body) => {
+        if(err) {
+          console.log(err.toString());
+          return cb(err.toString());
+        }
+
+        if(res.statusCode === 200) {
+          cb(false, body);
+        }
+      });
+    },
+
     restartRadarProcess: function(cb = function() {}) {
       request('http://radar:8081/restart', { json: true }, (err, res, body) => {
         if(err) return cb(err.toString());
@@ -391,8 +553,12 @@ setInterval(() => {
   });
 }, 30 * 1000);
 
+var hdf5;
 if(require.main === module) {
   (async () => {
+    hdf5 = await import('h5wasm');
+    await hdf5.ready;
+
     await redisClient.connect();
   
     server.listen(3000, function() {

@@ -92,6 +92,24 @@
         text-align: center;
       }
 
+      .view-scan-button.hide {
+        display: none;
+      }
+
+      .modal-dialog {
+        max-width: 80% !important;
+        height: 80% !important;
+      }
+
+      .modal-content {
+        display: block !important;
+        height: 100%;
+      }
+
+      .modal.show {
+        z-index: 99999;
+      }
+
   </style>
   
   <body class="d-flex flex-column h-100">
@@ -137,6 +155,39 @@
         <div class="col col-lg-2"></div>
       </div>
     </script>
+
+    <script type="text/html" id="plotModal">
+      <div>
+        <div class="row justify-content-md-center">
+          <div class="col col-lg-2"></div>
+          <div class="col-md-auto b-scan"></div>
+          <div class="col col-lg-2"></div>
+        </div>
+        <div class="row justify-content-md-center">
+          <div class="col col-lg-2"></div>
+          <div class="col-md-auto a-scan"></div>
+          <div class="col col-lg-2"></div>
+        </div>
+      </div>
+    </script>
+
+    <script type="text/html" id="tableTpl">
+      <div>
+        <div class="row justify-content-md-center">
+          <div class="col col-lg-2"></div>
+          <div class="col-md-auto plot-container"></div>
+          <div class="col col-lg-2"></div>
+        </div>
+        <div class="row justify-content-md-center">
+          <div class="col col-lg-2"></div>
+          <div class="col-md-auto plot-container">
+            <button class="btn btn-primary btn-lg btn-block view-scan-button hide">View Line Scan</button>
+          </div>
+           <div class="col col-lg-2"></div>
+        </div>
+      </div>
+    </script>
+
 
     <script type="text/html" id="scanPatternModalTpl">
       <div class="modal show modal-dialog-centered" id="scanPatternModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">

@@ -52,6 +52,13 @@ function velocityToRPM(speed) {
 }
 
 var remote;
+
+var reconnectCallbacks = [];
+function onReconnect(cb) {
+  reconnectCallbacks.push(cb);
+  if(remote.isConnected) cb();
+}
+
 var connectionManager = reconnect((stream) => {
   var d = dnode({
     data: function(key, value) {
@@ -61,14 +68,20 @@ var connectionManager = reconnect((stream) => {
 
   var pingIntervalId;
   d.on('remote', function(r) {
+    debugger;
     remote = r;
+    
+    remote.isConnected = true;
+    reconnectCallbacks.forEach(cb => cb());
+    if(!hasInitUI) initUI();
 
-    initUI();
-
-    if(pingIntervalId) clearInterval(pingIntervalId);
-    pingIntervalId = setInterval(() => {
-      remote.ping();
-    }, 5000);
+    remote.getClientTimeout(clientTimeout => {
+      debugger;
+      if(pingIntervalId) clearInterval(pingIntervalId);
+      pingIntervalId = setInterval(() => {
+        remote.ping();
+      }, clientTimeout);
+    });
   });
 
 
@@ -103,6 +116,7 @@ connectionManager.on('disconnect', () => {
       background: 'linear-gradient(to right, #00b09b, #96c93d)',
     },
   }).showToast();
+  remote.isConnected = false;
 });
 
 var retryNotify;
@@ -125,9 +139,10 @@ const toPascal = (s) => {
   return str.charAt(0).toUpperCase() + str.slice(1);
 };
 
-var currentTrackerConfig;
+var currentTrackerConfig, hasInitUI = false;
 function initUI() {
   console.log('init ui');
+  hasInitUI = true;
 
   var currentRoverPoseMapMarker,
       tools = ['pan', 'crosshair', 'wheel_zoom', 'box_zoom', 'reset', 'save'];
@@ -1512,143 +1527,154 @@ function initUI() {
       });
     }
 
-    remote.subscribe('rover_trajectory_profile', (key, trajectories) => {
-      trajectories.forEach(trajectory => {
+    onReconnect(() => {
+      remote.subscribe('rover_trajectory_profile', (key, trajectories) => {
+        trajectories.forEach(trajectory => {
 
-        //console.log('traj!!!', trajectory);
+          //console.log('traj!!!', trajectory);
 
-        trajectorySource.data.timestamp.push(trajectory.time);
-        trajectorySource.data.x.push(trajectory.pose.translation.x);
-        trajectorySource.data.y.push(trajectory.pose.translation.y);
+          trajectorySource.data.timestamp.push(trajectory.time);
+          trajectorySource.data.x.push(trajectory.pose.translation.x);
+          trajectorySource.data.y.push(trajectory.pose.translation.y);
 
-        return;
+          return;
 
-        var tX = trajectory.pose.translation.x + (0.01 * Math.cos(trajectory.pose.rotation.radians)),
-            tY = trajectory.pose.translation.y + (0.01 * Math.sin(trajectory.pose.rotation.radians));
-        
-        positionPlot.add_layout(
-          new Bokeh.Arrow(
-          { end: new Bokeh.VeeHead({ size: 10, fill_alpha: 0.5 }), 
-            x_start: trajectory.pose.translation.x, 
-            y_start: trajectory.pose.translation.y, 
-            x_end: tX,
-            y_end: tY
-          }));
+          var tX = trajectory.pose.translation.x + (0.01 * Math.cos(trajectory.pose.rotation.radians)),
+              tY = trajectory.pose.translation.y + (0.01 * Math.sin(trajectory.pose.rotation.radians));
+          
+          positionPlot.add_layout(
+            new Bokeh.Arrow(
+            { end: new Bokeh.VeeHead({ size: 10, fill_alpha: 0.5 }), 
+              x_start: trajectory.pose.translation.x, 
+              y_start: trajectory.pose.translation.y, 
+              x_end: tX,
+              y_end: tY
+            }));
+        });
+
+        trajectorySource.change.emit();
+
+        console.log(key, trajectories);
       });
-
-      trajectorySource.change.emit();
-
-      console.log(key, trajectories);
     });
 
-    remote.subscribe('rover_trajectory_sample', (key, sample) => {
-      var x = sample.trajectory.pose.translation.x;
-      var y = sample.trajectory.pose.translation.y;
+    onReconnect(() => {
+      remote.subscribe('rover_trajectory_sample', (key, sample) => {
+        var x = sample.trajectory.pose.translation.x;
+        var y = sample.trajectory.pose.translation.y;
 
-      xTrajectorySource.data.timestamp.push(sample.timestamp);
-      xTrajectorySource.data.x.push(x);
+        xTrajectorySource.data.timestamp.push(sample.timestamp);
+        xTrajectorySource.data.x.push(x);
 
-      yTrajectorySource.data.timestamp.push(sample.timestamp);
-      yTrajectorySource.data.y.push(y);
+        yTrajectorySource.data.timestamp.push(sample.timestamp);
+        yTrajectorySource.data.y.push(y);
 
-      //headingTrajectorySource.data.timestamp.push(sample.timestamp);
-      //headingTrajectorySource.data.theta.push(sample.trajectory.pose.rotation.radians);
+        //headingTrajectorySource.data.timestamp.push(sample.timestamp);
+        //headingTrajectorySource.data.theta.push(sample.trajectory.pose.rotation.radians);
 
-      var magnitude = Math.hypot(x, y);
+        var magnitude = Math.hypot(x, y);
 
-      var mSin = 0.0;
-      var mCos = 1.0;
+        var mSin = 0.0;
+        var mCos = 1.0;
 
-      if(magnitude > 1e-6) {
-        mCos = x / magnitude;
-        mSin = y / magnitude;
-      }
-      
-      /*velocityTrajectorySource.data.timestamp.push(sample.timestamp);
-      velocityTrajectorySource.data.x.push(sample.trajectory.velocity * mCos * flip);
-      velocityTrajectorySource.data.y.push(sample.trajectory.velocity * mSin * flip);*/
+        if(magnitude > 1e-6) {
+          mCos = x / magnitude;
+          mSin = y / magnitude;
+        }
+        
+        /*velocityTrajectorySource.data.timestamp.push(sample.timestamp);
+        velocityTrajectorySource.data.x.push(sample.trajectory.velocity * mCos * flip);
+        velocityTrajectorySource.data.y.push(sample.trajectory.velocity * mSin * flip);*/
+      });
     });
 
     var currentPoseArrow;
-    remote.on('rover_pose', 100, (key, pose) => {
-      positionSource.data.timestamp.push(pose.timestamp);
-      positionSource.data.x.push(pose.pos[0] * flip);
-      positionSource.data.y.push(pose.pos[1] * flip);
+    onReconnect(() => {
+      remote.on('rover_pose', 100, (key, pose) => {
+        positionSource.data.timestamp.push(pose.timestamp);
+        positionSource.data.x.push(pose.pos[0] * flip);
+        positionSource.data.y.push(pose.pos[1] * flip);
 
-      xSource.data.x.push(pose.pos[0] * flip);
-      xSource.data.timestamp.push(pose.timestamp);
+        xSource.data.x.push(pose.pos[0] * flip);
+        xSource.data.timestamp.push(pose.timestamp);
 
-      ySource.data.y.push(pose.pos[1] * flip);
-      ySource.data.timestamp.push(pose.timestamp);
+        ySource.data.y.push(pose.pos[1] * flip);
+        ySource.data.timestamp.push(pose.timestamp);
 
-      var euler = qte(pose.rot);
-      headingSource.data.theta.push(euler[2]);
-      headingSource.data.timestamp.push(pose.timestamp);
+        var euler = qte(pose.rot);
+        headingSource.data.theta.push(euler[2]);
+        headingSource.data.timestamp.push(pose.timestamp);
 
-      if(!currentPoseArrow) {
-        currentPoseArrow = new Bokeh.Arrow(
-          { end: new Bokeh.VeeHead({ fill_color: '#f9e816', size: 20, fill_alpha: 0.4 }), 
-              x_start: 0,
-              y_start: 0,
-              x_end: 0,
-              y_end: 0
-        });
+        if(!currentPoseArrow) {
+          currentPoseArrow = new Bokeh.Arrow(
+            { end: new Bokeh.VeeHead({ fill_color: '#f9e816', size: 20, fill_alpha: 0.4 }), 
+                x_start: 0,
+                y_start: 0,
+                x_end: 0,
+                y_end: 0
+          });
 
-        window.currentPoseArrow = currentPoseArrow;
+          window.currentPoseArrow = currentPoseArrow;
 
-        positionPlot.add_layout(currentPoseArrow);
+          positionPlot.add_layout(currentPoseArrow);
 
-      } else {
-        currentPoseArrow.properties.x_start.set_value(pose.pos[0] * flip);
-        currentPoseArrow.properties.y_start.set_value(pose.pos[1] * flip);
-  
-        currentPoseArrow.properties.x_end.set_value(((Math.cos(euler[2] + Math.PI) * 0.0001) +  pose.pos[0]) * flip );
-        currentPoseArrow.properties.y_end.set_value(((Math.sin(euler[2] + Math.PI) * 0.0001) +  pose.pos[1]) * flip );
+        } else {
+          currentPoseArrow.properties.x_start.set_value(pose.pos[0] * flip);
+          currentPoseArrow.properties.y_start.set_value(pose.pos[1] * flip);
+    
+          currentPoseArrow.properties.x_end.set_value(((Math.cos(euler[2] + Math.PI) * 0.0001) +  pose.pos[0]) * flip );
+          currentPoseArrow.properties.y_end.set_value(((Math.sin(euler[2] + Math.PI) * 0.0001) +  pose.pos[1]) * flip );
 
-        currentPoseArrow.change.emit();
-      }
+          currentPoseArrow.change.emit();
+        }
 
-      headingNumberDegree.innerText = rad2Deg(convertAngle(euler[2])).toFixed(2) + '°';
-      headingNumberRadian.innerText = euler[2].toFixed(2) + 'r';
+        headingNumberDegree.innerText = rad2Deg(convertAngle(euler[2])).toFixed(2) + '°';
+        headingNumberRadian.innerText = euler[2].toFixed(2) + 'r';
 
-      if(!roverMesh) return;
-      roverMesh.rotation.z = euler[2];
+        if(!roverMesh) return;
+        roverMesh.rotation.z = euler[2];
 
-      if(currentRoverPoseMapMarker) {
-        currentRoverPoseMapMarker.setLatLng([pose.pos[1] * flip, pose.pos[0] * flip]);
-        currentRoverPoseMapMarker.setRotationAngle(rad2Deg((Math.PI / 2) - euler[2]));
-      }
+        if(currentRoverPoseMapMarker) {
+          currentRoverPoseMapMarker.setLatLng([pose.pos[1] * flip, pose.pos[0] * flip]);
+          currentRoverPoseMapMarker.setRotationAngle(rad2Deg((Math.PI / 2) - euler[2]));
+        }
 
+      });
     });
-
-    remote.subscribe('radar_sample_point', (key, samplePoint) => {
-      radarSampleSource.data.timestamp.push(samplePoint.timestamp);
-      radarSampleSource.data.x.push(samplePoint.pos[0] * flip);
-      radarSampleSource.data.y.push(samplePoint.pos[1] * flip);
-    }, true);
+  
+    onReconnect(() => {
+      remote.subscribe('radar_sample_point', (key, samplePoint) => {
+        radarSampleSource.data.timestamp.push(samplePoint.timestamp);
+        radarSampleSource.data.x.push(samplePoint.pos[0] * flip);
+        radarSampleSource.data.y.push(samplePoint.pos[1] * flip);
+      }, true);
+    });
 
     var lastTimestamp = 0;
     var filter = new LowPassFilter(0.5), lastVelocity;
-    remote.on('rover_pose_velocity', 100, (key, velocity) => {
-      if(!lastVelocity) lastVelocity = velocity;
 
-      /*velocitySource.data.timestamp.push(lastTimestamp);
-      velocitySource.data.x.push(velocity.pos[0] * flip);
+    onReconnect(() => {
+      remote.on('rover_pose_velocity', 100, (key, velocity) => {
+        if(!lastVelocity) lastVelocity = velocity;
 
-      velocitySource.data.y.push(velocity.pos[1] * flip);
+        /*velocitySource.data.timestamp.push(lastTimestamp);
+        velocitySource.data.x.push(velocity.pos[0] * flip);
 
-      velocitySource.data.theta.push(filter.estimate(velocity.theta[2]));*/
+        velocitySource.data.y.push(velocity.pos[1] * flip);
 
-      var dt = velocity.timestamp - lastVelocity.timestamp;
+        velocitySource.data.theta.push(filter.estimate(velocity.theta[2]));*/
 
-      if(dt > 0) {
-        accelerationSource.data.timestamp.push(velocity.timestamp);
-        accelerationSource.data.x.push(((velocity.pos[0] - lastVelocity.pos[0]) / dt));
-        accelerationSource.data.y.push(((velocity.pos[1] - lastVelocity.pos[1]) / dt));
-        accelerationSource.data.theta.push(((filter.estimate(velocity.theta[2]) - filter.estimate(lastVelocity.theta[2])) / dt));
-      }
+        var dt = velocity.timestamp - lastVelocity.timestamp;
 
-      //velocitySource.change.emit();
+        if(dt > 0) {
+          accelerationSource.data.timestamp.push(velocity.timestamp);
+          accelerationSource.data.x.push(((velocity.pos[0] - lastVelocity.pos[0]) / dt));
+          accelerationSource.data.y.push(((velocity.pos[1] - lastVelocity.pos[1]) / dt));
+          accelerationSource.data.theta.push(((filter.estimate(velocity.theta[2]) - filter.estimate(lastVelocity.theta[2])) / dt));
+        }
+
+        //velocitySource.change.emit();
+      });
     });
 
     /*remote.on('rover_pose_velocity2', 100, (key, velocity) => {
@@ -1875,32 +1901,33 @@ function initUI() {
       addPlot(wheelPlot[0], wheelPlot[1]);
     });
 
-    remote.on('rover_wheel_status', 100, (key, wheelStatusMessage) => {
-      //console.log(wheelStatusMessage);
-      Object.keys(wheelStatusMessage).forEach(k => {
-        if(k === 'timestamp') {
-          wheelPlots.forEach(wheelPlot => {
-            wheelPlot[1][0].data.timestamp.push(wheelStatusMessage.timestamp);
-          });
+    onReconnect(() => {
+      remote.on('rover_wheel_status', 100, (key, wheelStatusMessage) => {
+        //console.log(wheelStatusMessage);
+        Object.keys(wheelStatusMessage).forEach(k => {
+          if(k === 'timestamp') {
+            wheelPlots.forEach(wheelPlot => {
+              wheelPlot[1][0].data.timestamp.push(wheelStatusMessage.timestamp);
+            });
 
-          return;
-        }
-        
-        if(k === 'angle*' || k === 'velocity' || k === 'torque*' || k === 'temperature*') {
-          // wheel data is
-          // 3 - back left
-          // 2 - front left
-          // 0 - back right
-          // 1 - front right
+            return;
+          }
+          
+          if(k === 'angle*' || k === 'velocity' || k === 'torque*' || k === 'temperature*') {
+            // wheel data is
+            // 3 - back left
+            // 2 - front left
+            // 0 - back right
+            // 1 - front right
 
-          backRightWheelStatus.data[k].push(rpmToVelocity(wheelStatusMessage[k][0]));
-          frontRightWheelStatus.data[k].push(rpmToVelocity(wheelStatusMessage[k][1]));
-          frontLeftWheelStatus.data[k].push(rpmToVelocity(wheelStatusMessage[k][2]));
-          backLeftWheelStatus.data[k].push(rpmToVelocity(wheelStatusMessage[k][3]));
-        }
+            backRightWheelStatus.data[k].push(rpmToVelocity(wheelStatusMessage[k][0]));
+            frontRightWheelStatus.data[k].push(rpmToVelocity(wheelStatusMessage[k][1]));
+            frontLeftWheelStatus.data[k].push(rpmToVelocity(wheelStatusMessage[k][2]));
+            backLeftWheelStatus.data[k].push(rpmToVelocity(wheelStatusMessage[k][3]));
+          }
+        });
       });
     });
-
     /*remote.on('rover_wheel_voltage_output', 50, (key, message) => {
       backRightWheelVoltage.data.timestamp.push(message.timestamp);
       frontRightWheelVoltage.data.timestamp.push(message.timestamp);
@@ -1995,86 +2022,90 @@ frontLeftMotorOutput,
     }
 
     window.lineScanSource = lineScanSource;
+    
+    onReconnect(() => {
+      remote.subscribe('radar_process_line', (key, message) => {
+        if(!message.scanComplete) {
+          remote.getDataProcessingStatus((err, status) => {
+            if(err) return console.log(err);
+            
+            if(!dataPollingIntervalId) {
+              dataPollingIntervalId = setInterval(() => {
+                updateLineProcessStatus(status.start_time);
+              }, 1000);
+            }
 
-    remote.subscribe('radar_process_line', (key, message) => {
-      if(!message.scanComplete) {
-        remote.getDataProcessingStatus((err, status) => {
-          if(err) return console.log(err);
+            lineScanSource.data.scanId.push(status.start_time);
+            lineScanSource.data.dataPath.push(status.image_dir);
+            lineScanSource.data.timestamp.push(message.timestamp);
+            lineScanSource.data.patternIndex.push(message.patternIndex);
+            lineScanSource.data.lineIndex.push(message.lineIndex);
+            lineScanSource.data.plannedSampleCount.push(message.plannedSamples);
+            lineScanSource.data.actualSampleCount.push(message.actualSamples);
+            lineScanSource.data.fileName.push('');
+            lineScanSource.data.scanStatus.push('in_progress');
+            lineScanSource.data.processStatus.push('processing');
+
+            lineScanSource.change.emit();
+          });
+        } else {
+          lineScanSource.data.scanStatus = lineScanSource.data.scanStatus.map(v => 'complete');
+          lineScanSource.selected.indices = lineScanSource.selected.indices; 
           
-          if(!dataPollingIntervalId) {
-            dataPollingIntervalId = setInterval(() => {
-              updateLineProcessStatus(status.start_time);
-            }, 1000);
-          }
-
-          lineScanSource.data.scanId.push(status.start_time);
-          lineScanSource.data.dataPath.push(status.image_dir);
-          lineScanSource.data.timestamp.push(message.timestamp);
-          lineScanSource.data.patternIndex.push(message.patternIndex);
-          lineScanSource.data.lineIndex.push(message.lineIndex);
-          lineScanSource.data.plannedSampleCount.push(message.plannedSamples);
-          lineScanSource.data.actualSampleCount.push(message.actualSamples);
-          lineScanSource.data.fileName.push('');
-          lineScanSource.data.scanStatus.push('in_progress');
-          lineScanSource.data.processStatus.push('processing');
-
           lineScanSource.change.emit();
-        });
-      } else {
-        lineScanSource.data.scanStatus = lineScanSource.data.scanStatus.map(v => 'complete');
-        lineScanSource.selected.indices = lineScanSource.selected.indices; 
+          clearInterval(dataPollingIntervalId);
+          dataPollingIntervalId = 0;
+        }
+        console.log('got process line!', message);
+      }, true);
+    });
+
+    onReconnect(() => {
+      remote.subscribe('rover_control_state', (key, message) => {
+        //console.log('rover_control_state', message);
+        lastTimestamp = message.timestamp;
+        backRightWheelVoltage.data.timestamp.push(message.timestamp);
+        frontRightWheelVoltage.data.timestamp.push(message.timestamp);
+        frontLeftWheelVoltage.data.timestamp.push(message.timestamp);
+        backLeftWheelVoltage.data.timestamp.push(message.timestamp);
+
+        backRightWheelState.data.timestamp.push(message.timestamp);
+        frontRightWheelState.data.timestamp.push(message.timestamp);
+        frontLeftWheelState.data.timestamp.push(message.timestamp);
+        backLeftWheelState.data.timestamp.push(message.timestamp);
+
         
-        lineScanSource.change.emit();
-        clearInterval(dataPollingIntervalId);
-        dataPollingIntervalId = 0;
-      }
-      console.log('got process line!', message);
-    }, true);
+        backRightWheelState.data.output.push(message.backRightOutput);
+        frontRightWheelState.data.output.push(message.frontRightOutput);
+        frontLeftWheelState.data.output.push(message.frontLeftOutput);
+        backLeftWheelState.data.output.push(message.backLeftOutput);
 
-    remote.subscribe('rover_control_state', (key, message) => {
-      //console.log('rover_control_state', message);
-      lastTimestamp = message.timestamp;
-      backRightWheelVoltage.data.timestamp.push(message.timestamp);
-      frontRightWheelVoltage.data.timestamp.push(message.timestamp);
-      frontLeftWheelVoltage.data.timestamp.push(message.timestamp);
-      backLeftWheelVoltage.data.timestamp.push(message.timestamp);
+        velocitySource.data.timestamp.push(message.timestamp);
+        velocitySource.data.x.push(message.velocityX * -1);
+        velocitySource.data.y.push(message.velocityY * -1);
 
-      backRightWheelState.data.timestamp.push(message.timestamp);
-      frontRightWheelState.data.timestamp.push(message.timestamp);
-      frontLeftWheelState.data.timestamp.push(message.timestamp);
-      backLeftWheelState.data.timestamp.push(message.timestamp);
+        velocityTrajectorySource.data.timestamp.push(message.timestamp);
+        velocityTrajectorySource.data.x.push(message.targetChassisVelocityX);
+        velocityTrajectorySource.data.y.push(message.targetChassisVelocityY);
 
-      
-      backRightWheelState.data.output.push(message.backRightOutput);
-      frontRightWheelState.data.output.push(message.frontRightOutput);
-      frontLeftWheelState.data.output.push(message.frontLeftOutput);
-      backLeftWheelState.data.output.push(message.backLeftOutput);
-
-      velocitySource.data.timestamp.push(message.timestamp);
-      velocitySource.data.x.push(message.velocityX * -1);
-      velocitySource.data.y.push(message.velocityY * -1);
-
-      velocityTrajectorySource.data.timestamp.push(message.timestamp);
-      velocityTrajectorySource.data.x.push(message.targetChassisVelocityX);
-      velocityTrajectorySource.data.y.push(message.targetChassisVelocityY);
-
-      /*console.log('outputs!!');
-      console.log(message.backRightOutput);
-      console.log(message.frontRightOutput);
-      console.log(message.frontLeftOutput);
-      console.log(message.backLeftOutput);*/
-      
-      backRightWheelVoltage.data.voltage.push(message.backRightMotorOutput);
-      frontRightWheelVoltage.data.voltage.push(message.frontRightMotorOutput);
-      frontLeftWheelVoltage.data.voltage.push(message.frontLeftMotorOutput);
-      backLeftWheelVoltage.data.voltage.push(message.backLeftMotorOutput);
+        /*console.log('outputs!!');
+        console.log(message.backRightOutput);
+        console.log(message.frontRightOutput);
+        console.log(message.frontLeftOutput);
+        console.log(message.backLeftOutput);*/
+        
+        backRightWheelVoltage.data.voltage.push(message.backRightMotorOutput);
+        frontRightWheelVoltage.data.voltage.push(message.frontRightMotorOutput);
+        frontLeftWheelVoltage.data.voltage.push(message.frontLeftMotorOutput);
+        backLeftWheelVoltage.data.voltage.push(message.backLeftMotorOutput);
 
 
-      backRightWheelState.data.velocityTarget.push(message.wheelRearRightSetpoint);
-      frontRightWheelState.data.velocityTarget.push(message.wheelFrontRightSetpoint);
-      frontLeftWheelState.data.velocityTarget.push(message.wheelFrontLeftSetpoint);
-      backLeftWheelState.data.velocityTarget.push(message.wheelRearLeftSetpoint);
-    }, true);
+        backRightWheelState.data.velocityTarget.push(message.wheelRearRightSetpoint);
+        frontRightWheelState.data.velocityTarget.push(message.wheelFrontRightSetpoint);
+        frontLeftWheelState.data.velocityTarget.push(message.wheelFrontLeftSetpoint);
+        backLeftWheelState.data.velocityTarget.push(message.wheelRearLeftSetpoint);
+      }, true);
+    });
 
     function update() {
       addedPlots.forEach(plot => {

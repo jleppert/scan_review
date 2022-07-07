@@ -79,10 +79,10 @@ app.use(express.static(path.join(__dirname, 'data')));
 var server = http.createServer(app);
 
 var redisClient = redis.createClient('/var/run/redis/redis-server.sock');
-redisClient.on('error', err => console.log('redis client error', err));
-redisClient.on('connect', () => console.log('redis client is connect'));
-redisClient.on('reconnecting', () => console.log('redis client is reconnecting'));
-redisClient.on('ready', () => console.log('redis client is ready'));
+redisClient.on('error', err => console.log('Shared redis client error', err));
+redisClient.on('connect', () => console.log('Shared redis client is connected'));
+redisClient.on('reconnecting', () => console.log('Shared redis client is reconnecting'));
+redisClient.on('ready', () => console.log('Shared redis client is ready'));
 
 var remotes = {},
     messageStructs = [];
@@ -131,6 +131,9 @@ var sock = shoe(function(stream) {
   }
 
   var d = dnode({
+    getClientTimeout: function(cb = function() {}) {
+      cb(clientTimeout);
+    },
     ping: function() {
       var r = remotes[remote.id];
       if(r) r.lastPing = Date.now(); 
@@ -182,6 +185,12 @@ var sock = shoe(function(stream) {
 
     subscribe: async function(key, cb = function() {}, unpackMessage = false) {
       var subscriber = redisClient.duplicate();
+      remote.redisClients.push(subscriber);
+
+      subscriber.on('error', err => console.log('remote id', remote.id, 'subscriber for key', key, 'redis client error', err));
+      subscriber.on('connect', () => console.log('remote id', remote.id, 'subscriber for key', key, 'redis client is connected'));
+      subscriber.on('reconnecting', () => console.log('remote id', remote.id, 'subscriber for key', key, 'redis client is reconnecting'));
+      subscriber.on('ready', () => console.log('remote id', remote.id, 'subscriber for key', key, 'redis client is ready'));
 
       await subscriber.connect();
 
@@ -527,12 +536,17 @@ var sock = shoe(function(stream) {
   });
 
    d.on('remote', function(r) {
-    r.id = Math.random();
+    console.log(d);
+    r.id = stream.id;
     remote = r;
 
     remotes[r.id] = remote;
+
+    remote.stream = stream;
     remote.ee = new EventEmitter();
     remote.timers = {};
+    remote.redisClients = [];
+    r.lastPing = Date.now();
 
     console.log('New client connected', r.id, remotes);
   });
@@ -542,16 +556,41 @@ var sock = shoe(function(stream) {
 
 sock.install(server, '/ws');
 
-setInterval(() => {
-  Object.keys(remotes).forEach((id) => {
-    var r = remotes[id];
-    
-    if(!r || !r.lastPing || ((Date.now() - r.lastPing) > 60 * 1000)) {
-      console.log('Client timed out', id, Date.now(), r.lastPing);
-      delete remotes[id];
-    }
-  });
-}, 30 * 1000);
+const clientTimeout = 10 * 1000;
+function initCleanupRemotes() {
+  setInterval(() => {
+    console.log('Starting cleanup of remotes', remotes);
+    Object.keys(remotes).forEach(async (id) => {
+      var r = remotes[id];
+      
+      if(!r || !r.lastPing || ((Date.now() - r.lastPing) > clientTimeout)) {
+        console.log('Client timed out', id, Date.now(), r.lastPing, 'last seen', Date.now() - r.lastPing, 'greater than timeout of', clientTimeout);
+        
+        r.ee.removeAllListeners();
+        
+        for(var [key, timer] of Object.entries(remotes[id].timers)) {
+          clearInterval(timer);
+        }
+
+        remotes[id].timers = [];
+       
+        var index = 0; 
+        for(var client of remotes[id].redisClients) {
+          await client.disconnect();
+          remotes[id].redisClients[index] = null;
+          delete remotes[id].redisClients[index];
+          index++;
+        }
+
+        remotes[id].redisClients = [];
+
+        r.stream.close();
+
+        delete remotes[id];
+      }
+    });
+  }, clientTimeout);
+}
 
 var hdf5;
 if(require.main === module) {
@@ -562,6 +601,7 @@ if(require.main === module) {
     await redisClient.connect();
   
     server.listen(3000, function() {
+      initCleanupRemotes();
       console.log(`Scan review UI started on ${server.address().address}:${server.address().port}`);
     });
   })();

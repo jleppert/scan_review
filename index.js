@@ -98,7 +98,7 @@ var unpack = unpacker.unpack,
     pack   = packer.pack;
 
 var trackerConfigPath = path.join(require('os').homedir(), '.config', 'libsurvive', 'config.json'); 
-
+console.log(trackerConfigPath);
 var logs = {};
 
 function toArrayBuffer(buf) {
@@ -181,6 +181,7 @@ var sock = shoe(function(stream) {
     },
 
     publish: async function(key, value) {
+      console.log('publishing!!', key, value);
       await redisClient.publish(Buffer.from(key), value);
     },
 
@@ -206,9 +207,43 @@ var sock = shoe(function(stream) {
       }, true);
     },
 
+    recalibrate: function() {
+      pm2.connect(err => {
+        if(err) return console.log(err.toString());
+        
+        pm2.stop('survive_redis_driver', (err, apps) => {
+          if(err) return console.log(err.toString());
+          console.log(apps);
+          
+          console.log(trackerConfigPath);
+
+          var baseData = fs.readFileSync(trackerConfigPath);
+          
+          console.log(baseData);
+          var basePoseRegex = /\"pose\":\[\"-*\d+.\d+\",\"-*\d+.\d+\",\"-*\d+.\d+\",\"-*\d+.\d+\",\"-*\d+.\d+\",\"-*\d+.\d+\",\"-*\d+.\d+\"\]/gm; 
+          var positionSetRegex = /"PositionSet":"\d"/gm;
+
+          var resetPose = `"pose":["0.000000000000","0.000000000000","0.000000000000","0.000000000000","0.000000000000","0.000000000000","0.000000000000"]`;
+          var resetPositionSet = `"PositionSet":"0"`;
+
+          fs.writeFileSync(trackerConfigPath, 
+              baseData.toString().replace(basePoseRegex, resetPose)
+              .replace(positionSetRegex, resetPositionSet)
+          );
+
+          pm2.start({
+            name: 'survive_redis_driver'
+          }, (err, apps) => {
+            if(err) return console.log(err.toString());
+            console.log(apps);
+          });
+        });
+      });
+    },
+
     stopNow: function() {
       pm2.connect(err => {
-        if(err) return console.log(err);
+        if(err) return console.log(err.toString());
 
         pm2.restart({
           name: 'mecanum_drive_controller'
@@ -419,6 +454,8 @@ var sock = shoe(function(stream) {
         }
 
         if(res.statusCode === 200) {
+
+          console.log('line process status', body.toString());
           cb(false, body);
         }
       });

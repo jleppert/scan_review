@@ -518,7 +518,7 @@ function initUI() {
 
     accelerationPlot.add_layout(new Bokeh.LinearAxis({ y_range_name: 'acceleration_theta', axis_label: 'accel_θ (radian/sec)' }), 'left');
 
-    addPlot(positionPlot, [positionSource, radarSampleSource]);
+    addPlot(positionPlot, [positionSource, trajectorySource, radarSampleSource]);
     
     window.lineScanTable = lineScanTable;
     var lineScanTableContainer = addPlot(lineScanTable, [], 'tableTpl');
@@ -1415,7 +1415,7 @@ function initUI() {
         remote.stopNow();
       },
       recalibrate: function() {
-
+        remote.recalibrate();
       },
       initialize: function() {
 

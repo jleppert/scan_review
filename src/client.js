@@ -305,6 +305,8 @@ function initUI() {
       data: { timestamp: [], x: [], y: [] }
     });
 
+    window.positionSource = positionSource;
+
     var radarSampleSource = new Bokeh.ColumnDataSource({
       data: { timestamp: [], x: [], y: [] }
     });
@@ -1393,7 +1395,33 @@ function initUI() {
       }
     };
     
-    var roverParams = {}; 
+    var roverParams = {};
+
+    var systemParams = {
+      clearPlots: function() {
+        console.log('clear plots!');
+        
+        addedPlots.forEach(plot => {
+          if(plot[1]) {
+            plot[1].forEach(s => s.clear());
+          }
+        });
+      },
+      home: function() {
+        debugger;
+        remote.publish('rover_command', JSON.stringify({ command: 'GOTO_HOME' }));
+      },
+      stopNow: function() {
+        remote.stopNow();
+      },
+      recalibrate: function() {
+
+      },
+      initialize: function() {
+
+      }
+    };
+
     remote.getParameters(params => {
       console.log('current params', params);
       roverParams = params;
@@ -1402,6 +1430,16 @@ function initUI() {
       paramsGui = new dat.gui.GUI({ width: 400 });
       paramsGui.domElement.parentElement.style.top = '110px';
 
+      paramsGui.add(systemParams, 'stopNow').name('Emergency Stop');
+      paramsGui.add(systemParams, 'home').name('Go To Home Position');
+      paramsGui.add(systemParams, 'recalibrate').name('Recalibrate');
+      paramsGui.add(systemParams, 'clearPlots').name('Clear Plots');
+      
+      var systemGui = paramsGui.addFolder('System');
+      systemGui.add(systemParams, 'initialize').name('Initialize System');
+      
+      systemGui.open();
+  
       var tuning = paramsGui.addFolder('Controls Tuning');
 
       Object.keys(params).forEach(key => {
@@ -1421,7 +1459,7 @@ function initUI() {
           });
       });
 
-      tuning.open();
+      //tuning.open();
 
       remote.getRadarParameters(radarParams => {
         var radar = paramsGui.addFolder('Radar Parameters');
@@ -1445,6 +1483,10 @@ function initUI() {
               });
             });
         });
+        
+        radar.add({ restart: () => {
+
+          }}, 'restart').name('Restart Radar Data Acquisition Process');
 
         radar.open();
       });

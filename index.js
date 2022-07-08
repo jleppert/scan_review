@@ -15,7 +15,8 @@ var fs            = require('fs'),
     EventEmitter  = require('events'),
     babelify      = require('babelify'),
     babelPreset   = require('@babel/preset-env'),
-    browserify    = require('browserify-middleware');
+    browserify    = require('browserify-middleware'),
+    pm2           = require('pm2');
 
 var app = express();
 
@@ -203,6 +204,18 @@ var sock = shoe(function(stream) {
         //}
         cb(key.toString(), unpackMessage ? unpack(message) : JSON.parse(message.toString()));
       }, true);
+    },
+
+    stopNow: function() {
+      pm2.connect(err => {
+        if(err) return console.log(err);
+
+        pm2.restart({
+          name: 'mecanum_drive_controller'
+        }, (err, apps) => {
+          console.log(err, apps);
+        });
+      });
     },
 
     getParameters: async function(cb = function() {}) {

@@ -558,7 +558,7 @@ function initUI() {
           '#ffffff'];
 
 
-        //var palette = ['#820300', '#dc0a00', '#f95d5e', '#fefdfd', '#5c5cff', '#2100cd', '#08005a'].reverse();
+        var palette = ['#820300', '#dc0a00', '#f95d5e', '#fefdfd', '#5c5cff', '#2100cd', '#08005a'].reverse();
 
         var colormap = colorLerp(palette, smoothstep);
 
@@ -784,8 +784,8 @@ function initUI() {
       wheelBase: [0.001, 1, 0.001, 'meters'],
       wheelDiameter: [0.001, 1, 0.001, 'meters'],
       controllerUpdateRate: [10, 100, 1, 'hz'],
-      maxXPosition: [0.1, 1, 0.01, 'meters'],
-      maxYPosition: [0.1, 1, 0.01, 'meters'],
+      maxXPosition: [0.1, 2, 0.01, 'meters'],
+      maxYPosition: [0.1, 2, 0.01, 'meters'],
       linearTolerance: [0.001, 0.1, 0.001, 'meters'],
       angularTolerance: [(2.0 * Math.PI / 360), (2.0 * Math.PI / 90), (2.0 * Math.PI / 360),'radians'],
       poseToleranceX: [0.001, 0.1, 0.001, 'meters'],

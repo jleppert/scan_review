@@ -33,6 +33,25 @@ var t = hrTime[0] * 1000000 + hrTime[1] / 1000;
   await client.connect();
 
   var current = parseInt(await client.get("rover_startup_timestamp"));
+
+  var params = unpacker.unpack((await client.get(
+    client.commandOptions({ returnBuffers: true }),
+    'rover_parameters'
+  )));
+
+  params.set('wheelOdometryUpdateRate', 100);
+
+  var packedParams = packer.pack(params);
+
+  await client.set(client.commandOptions({ returnBuffers: true }), 'rover_parameters', packedParams);
+
+
+  
+  console.log(params);
+
+  return;
+ 
+
  
  /* 
   var data = await client.getBuffer(Buffer.from("rover_base_pose-LH1-LHB-6B84C4CA"));

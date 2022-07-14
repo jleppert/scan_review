@@ -819,6 +819,7 @@ function initUI() {
       wheelBase: [0.001, 1, 0.001, 'meters'],
       wheelDiameter: [0.001, 1, 0.001, 'meters'],
       controllerUpdateRate: [10, 100, 1, 'hz'],
+      wheelOdometryUpdateRate: [10, 100, 1, 'hz'],
       maxXPosition: [0.1, 2, 0.01, 'meters'],
       maxYPosition: [0.1, 2, 0.01, 'meters'],
       linearTolerance: [0.001, 0.1, 0.001, 'meters'],

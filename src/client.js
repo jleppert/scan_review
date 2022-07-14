@@ -305,6 +305,10 @@ function initUI() {
       data: { timestamp: [], x: [], y: [] }
     });
 
+    var cameraPositionSource = new Bokeh.ColumnDataSource({
+      data: { timestamp: [], x: [], y: [] }
+    });
+
     window.positionSource = positionSource;
 
     var radarSampleSource = new Bokeh.ColumnDataSource({
@@ -320,6 +324,14 @@ function initUI() {
     });
 
     var ySource = new Bokeh.ColumnDataSource({
+      data: { timestamp: [], y: [] }
+    });
+
+    var xCameraSource = new Bokeh.ColumnDataSource({
+      data: { timestamp: [], x: [] }
+    });
+
+    var yCameraSource = new Bokeh.ColumnDataSource({
       data: { timestamp: [], y: [] }
     });
 
@@ -346,6 +358,13 @@ function initUI() {
       line_width: 2
     });
 
+    const xyLineCamera = new Bokeh.Line({
+      x: { field: "x" },
+      y: { field: "y" },
+      line_color: "#ff0000",
+      line_width: 2
+    });
+
     const radarSamplePoint = new Bokeh.Circle({
       x: { field: "x" },
       y: { field: "y" },
@@ -360,12 +379,14 @@ function initUI() {
     });
 
     var xyLineGlyphRenderer = positionPlot.add_glyph(xyLine, positionSource);
+    var xyLineCameraGlyphRenderer = positionPlot.add_glyph(xyLineCamera, cameraPositionSource);
     var xyLineTrajectoryGlyphRenderer = positionPlot.add_glyph(xyLineTrajectory, trajectorySource);
     var radarSamplePointGlyphRenderer = positionPlot.add_glyph(radarSamplePoint, radarSampleSource);
 
     var positionLegend = new Bokeh.Legend({
       items: [
-        new Bokeh.LegendItem({ label: { value: 'Estimate' }, renderers: [xyLineGlyphRenderer] }),
+        new Bokeh.LegendItem({ label: { value: 'Tracker Estimate' }, renderers: [xyLineGlyphRenderer] }),
+        new Bokeh.LegendItem({ label: { value: 'Camera Estimate' }, renderers: [xyLineCameraGlyphRenderer] }),
         new Bokeh.LegendItem({ label: { value: 'Trajectory' }, renderers: [xyLineTrajectoryGlyphRenderer] }),
         new Bokeh.LegendItem({ label: { value: 'Radar Sample Point' }, renderers: [radarSamplePointGlyphRenderer] })
       ]
@@ -376,7 +397,14 @@ function initUI() {
     xPositionPlot.line({ field: 'timestamp' }, { field: 'x' }, {
       source: xSource,
       line_color: "#666699",
-      legend_label: 'Estimate',
+      legend_label: 'Tracker Estimate',
+      line_width: 2
+    });
+
+    xPositionPlot.line({ field: 'timestamp' }, { field: 'x' }, {
+      source: xCameraSource,
+      line_color: "#ff0000",
+      legend_label: 'Camera Estimate',
       line_width: 2
     });
 
@@ -390,7 +418,14 @@ function initUI() {
     yPositionPlot.line({ field: 'timestamp' }, { field: 'y' }, {
       source: ySource,
       line_color: "#666699",
-      legend_label: 'Estimate',
+      legend_label: 'Tracker Estimate',
+      line_width: 2
+    });
+
+    yPositionPlot.line({ field: 'timestamp' }, { field: 'y' }, {
+      source: yCameraSource,
+      line_color: "#ff0000",
+      legend_label: 'Camera Estimate',
       line_width: 2
     });
 
@@ -518,7 +553,7 @@ function initUI() {
 
     accelerationPlot.add_layout(new Bokeh.LinearAxis({ y_range_name: 'acceleration_theta', axis_label: 'accel_θ (radian/sec)' }), 'left');
 
-    addPlot(positionPlot, [positionSource, trajectorySource, radarSampleSource]);
+    addPlot(positionPlot, [positionSource, cameraPositionSource, trajectorySource, radarSampleSource]);
     
     window.lineScanTable = lineScanTable;
     var lineScanTableContainer = addPlot(lineScanTable, [], 'tableTpl');
@@ -753,8 +788,8 @@ function initUI() {
       });
     });
 
-    addPlot(xPositionPlot, [xSource, xTrajectorySource]);
-    addPlot(yPositionPlot, [ySource, yTrajectorySource]);
+    addPlot(xPositionPlot, [xSource, xCameraSource, xTrajectorySource]);
+    addPlot(yPositionPlot, [ySource, yCameraSource, yTrajectorySource]);
     addPlot(velocityPlot, [velocitySource, velocityTrajectorySource]);
 
     addPlot(accelerationPlot, accelerationSource);
@@ -1430,9 +1465,16 @@ function initUI() {
       paramsGui = new dat.gui.GUI({ width: 400 });
       paramsGui.domElement.parentElement.style.top = '110px';
 
-      paramsGui.add(systemParams, 'stopNow').name('Emergency Stop');
-      paramsGui.add(systemParams, 'home').name('Go To Home Position');
-      paramsGui.add(systemParams, 'recalibrate').name('Recalibrate');
+      
+      var estop = paramsGui.add(systemParams, 'stopNow').name('Emergency Stop');
+      estop.__li.id = 'stopNow';
+
+      var home = paramsGui.add(systemParams, 'home').name('Go To Home Position');
+      home.__li.id = 'home';
+
+      var origin = paramsGui.add(systemParams, 'recalibrate').name('Set Origin');
+      origin.__li.id = 'origin';
+      
       paramsGui.add(systemParams, 'clearPlots').name('Clear Plots');
       
       var systemGui = paramsGui.addFolder('System');
@@ -1523,7 +1565,7 @@ function initUI() {
 
         patterns = patterns || [];
 
-        var createOrEdit, generateTrajectory, runPattern;
+        var createOrEdit, generateTrajectory, runPattern, patternMaxVelocity, patternMaxAcceleration;
         scanPlanning.onSelectedPattern = function() {
           if(createOrEdit) {
             createOrEdit.remove();
@@ -1537,6 +1579,16 @@ function initUI() {
             runPattern.remove();
             runPattern = null;
           }
+
+          if(patternMaxVelocity) {
+            patternMaxVelocity.remove();
+            patternMaxVelocity = null;
+          }
+
+          if(patternMaxAcceleration) {
+            patternMaxAcceleration.remove();
+            patternMaxAcceleration = null;
+          }
           
           var selectedPattern;
           if(selectedPattern = patterns.find(p => p.name === scanPlanningParams.selectedPattern)) {
@@ -1545,17 +1597,15 @@ function initUI() {
               maxAcceleration: selectedPattern.trajectory.maxAcceleration || roverParams.maxAcceleration
             };
             
-            
-            scanPlanning.add(patternParams, 'maxVelocity').min(paramsConstraints.maxVelocity[0]).max(paramsConstraints.maxVelocity[1]).step(paramsConstraints.maxVelocity[2]).onFinishChange(() => {
+            patternMaxVelocity = scanPlanning.add(patternParams, 'maxVelocity').min(paramsConstraints.maxVelocity[0]).max(paramsConstraints.maxVelocity[1]).step(paramsConstraints.maxVelocity[2]).onFinishChange(() => {
               selectedPattern.trajectory.maxVelocity = patternParams.maxVelocity;
               remote.set('rover_scan_patterns', JSON.stringify(patterns), () => { });
             });
-            scanPlanning.add(patternParams, 'maxAcceleration').min(paramsConstraints.maxAcceleration[0]).max(paramsConstraints.maxAcceleration[1]).step(paramsConstraints.maxAcceleration[2]).onFinishChange(() => {
+            patternMaxAcceleration = scanPlanning.add(patternParams, 'maxAcceleration').min(paramsConstraints.maxAcceleration[0]).max(paramsConstraints.maxAcceleration[1]).step(paramsConstraints.maxAcceleration[2]).onFinishChange(() => {
               selectedPattern.trajectory.maxAcceleration = patternParams.maxAcceleration;
               remote.set('rover_scan_patterns', JSON.stringify(patterns), () => { });
             });
 
-             
             createOrEdit = scanPlanning.add(scanPlanningParams, 'createOrEdit').name('Edit Pattern');
             generateTrajectory = scanPlanning.add(scanPlanningParams, 'generateTrajectory').name('Generate Trajectory Path');
             runPattern = scanPlanning.add(scanPlanningParams, 'run').name('Run Pattern');
@@ -1630,8 +1680,47 @@ function initUI() {
       });
     });
 
-    var currentPoseArrow;
+    var currentTrackerPoseArrow, currentCameraPoseArrow;
     onReconnect(() => {
+      remote.on('rover_camera_pose', 100, (key, pose) => {
+        cameraPositionSource.data.timestamp.push(pose.timestamp);
+        cameraPositionSource.data.x.push(pose.pos[1]);
+        cameraPositionSource.data.y.push(pose.pos[0] * flip);
+
+        xCameraSource.data.x.push(pose.pos[1]);
+        xCameraSource.data.timestamp.push(pose.timestamp);
+
+        yCameraSource.data.y.push(pose.pos[0] * flip);
+        yCameraSource.data.timestamp.push(pose.timestamp);
+        
+        if(!currentCameraPoseArrow) {
+          currentCameraPoseArrow = new Bokeh.Arrow(
+            { end: new Bokeh.VeeHead({ fill_color: '#ff0000', size: 20, fill_alpha: 0.4 }), 
+                x_start: 0,
+                y_start: 0,
+                x_end: 0,
+                y_end: 0
+          });
+
+          window.currentCameraPoseArrow = currentCameraPoseArrow;
+
+          positionPlot.add_layout(currentCameraPoseArrow);
+
+        } else {
+          currentCameraPoseArrow.properties.x_start.set_value(pose.pos[1]);
+          currentCameraPoseArrow.properties.y_start.set_value(pose.pos[0] * flip);
+   
+          var euler = qte(pose.rot);
+ 
+          currentCameraPoseArrow.properties.x_end.set_value(((Math.cos(euler[2] + Math.PI) * 0.0001) +  pose.pos[1]));
+          currentCameraPoseArrow.properties.y_end.set_value(((Math.sin(euler[2] + Math.PI) * 0.0001) +  pose.pos[0]) * flip);
+
+          currentCameraPoseArrow.change.emit();
+        }
+
+        console.log('got camera pose', pose);
+      });
+      
       remote.on('rover_pose', 100, (key, pose) => {
         positionSource.data.timestamp.push(pose.timestamp);
         positionSource.data.x.push(pose.pos[0] * flip);
@@ -1647,8 +1736,8 @@ function initUI() {
         headingSource.data.theta.push(euler[2]);
         headingSource.data.timestamp.push(pose.timestamp);
 
-        if(!currentPoseArrow) {
-          currentPoseArrow = new Bokeh.Arrow(
+        if(!currentTrackerPoseArrow) {
+          currentTrackerPoseArrow = new Bokeh.Arrow(
             { end: new Bokeh.VeeHead({ fill_color: '#f9e816', size: 20, fill_alpha: 0.4 }), 
                 x_start: 0,
                 y_start: 0,
@@ -1656,18 +1745,18 @@ function initUI() {
                 y_end: 0
           });
 
-          window.currentPoseArrow = currentPoseArrow;
+          window.currentTrackerPoseArrow = currentTrackerPoseArrow;
 
-          positionPlot.add_layout(currentPoseArrow);
+          positionPlot.add_layout(currentTrackerPoseArrow);
 
         } else {
-          currentPoseArrow.properties.x_start.set_value(pose.pos[0] * flip);
-          currentPoseArrow.properties.y_start.set_value(pose.pos[1] * flip);
+          currentTrackerPoseArrow.properties.x_start.set_value(pose.pos[0] * flip);
+          currentTrackerPoseArrow.properties.y_start.set_value(pose.pos[1] * flip);
     
-          currentPoseArrow.properties.x_end.set_value(((Math.cos(euler[2] + Math.PI) * 0.0001) +  pose.pos[0]) * flip );
-          currentPoseArrow.properties.y_end.set_value(((Math.sin(euler[2] + Math.PI) * 0.0001) +  pose.pos[1]) * flip );
+          currentTrackerPoseArrow.properties.x_end.set_value(((Math.cos(euler[2] + Math.PI) * 0.0001) +  pose.pos[0]) * flip );
+          currentTrackerPoseArrow.properties.y_end.set_value(((Math.sin(euler[2] + Math.PI) * 0.0001) +  pose.pos[1]) * flip );
 
-          currentPoseArrow.change.emit();
+          currentTrackerPoseArrow.change.emit();
         }
 
         headingNumberDegree.innerText = rad2Deg(convertAngle(euler[2])).toFixed(2) + '°';

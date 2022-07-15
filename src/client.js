@@ -40,7 +40,7 @@ var BokehEvents   = Bokeh.require('core/bokeh_events');
 var BokehEnums    = Bokeh.require('core/enums');
 var BokehTable    = Bokeh.require('models/widgets/tables');
 
-var flip = -1;
+var flip = 1;
 
 const WHEEL_RADIUS = 45;
 function rpmToVelocity(rpm) {
@@ -288,7 +288,6 @@ function initUI() {
       line_width: 2
     });
 
-
     var xAxis = new Bokeh.LinearAxis({ axis_line_color: null });
     var yAxis = new Bokeh.LinearAxis({ axis_line_color: null });
 
@@ -306,6 +305,10 @@ function initUI() {
     });
 
     var cameraPositionSource = new Bokeh.ColumnDataSource({
+      data: { timestamp: [], x: [], y: [] }
+    });
+
+    var odometryPositionSource = new Bokeh.ColumnDataSource({
       data: { timestamp: [], x: [], y: [] }
     });
 
@@ -332,6 +335,14 @@ function initUI() {
     });
 
     var yCameraSource = new Bokeh.ColumnDataSource({
+      data: { timestamp: [], y: [] }
+    });
+
+    var xOdometrySource = new Bokeh.ColumnDataSource({
+      data: { timestamp: [], x: [] }
+    });
+
+    var yOdometrySource = new Bokeh.ColumnDataSource({
       data: { timestamp: [], y: [] }
     });
 
@@ -365,6 +376,13 @@ function initUI() {
       line_width: 2
     });
 
+    const xyLineOdometry = new Bokeh.Line({
+      x: { field: "x" },
+      y: { field: "y" },
+      line_color: "#DDA0DD",
+      line_width: 2
+    });
+
     const radarSamplePoint = new Bokeh.Circle({
       x: { field: "x" },
       y: { field: "y" },
@@ -380,6 +398,7 @@ function initUI() {
 
     var xyLineGlyphRenderer = positionPlot.add_glyph(xyLine, positionSource);
     var xyLineCameraGlyphRenderer = positionPlot.add_glyph(xyLineCamera, cameraPositionSource);
+    var xyLineOdometryGlyphRenderer = positionPlot.add_glyph(xyLineOdometry, odometryPositionSource);
     var xyLineTrajectoryGlyphRenderer = positionPlot.add_glyph(xyLineTrajectory, trajectorySource);
     var radarSamplePointGlyphRenderer = positionPlot.add_glyph(radarSamplePoint, radarSampleSource);
 
@@ -387,6 +406,7 @@ function initUI() {
       items: [
         new Bokeh.LegendItem({ label: { value: 'Tracker Estimate' }, renderers: [xyLineGlyphRenderer] }),
         new Bokeh.LegendItem({ label: { value: 'Camera Estimate' }, renderers: [xyLineCameraGlyphRenderer] }),
+        new Bokeh.LegendItem({ label: { value: 'Odometry Estimate' }, renderers: [xyLineOdometryGlyphRenderer] }),
         new Bokeh.LegendItem({ label: { value: 'Trajectory' }, renderers: [xyLineTrajectoryGlyphRenderer] }),
         new Bokeh.LegendItem({ label: { value: 'Radar Sample Point' }, renderers: [radarSamplePointGlyphRenderer] })
       ]
@@ -408,6 +428,13 @@ function initUI() {
       line_width: 2
     });
 
+    xPositionPlot.line({ field: 'timestamp' }, { field: 'x' }, {
+      source: xOdometrySource,
+      line_color: "#DDA0DD",
+      legend_label: 'Odometry Estimate',
+      line_width: 2
+    });
+
     xPositionPlot.line({ field: 'timestamp' }, { field: 'x', }, {
       source: xTrajectorySource,
       line_color: "#43ac6a",
@@ -426,6 +453,13 @@ function initUI() {
       source: yCameraSource,
       line_color: "#ff0000",
       legend_label: 'Camera Estimate',
+      line_width: 2
+    });
+
+    yPositionPlot.line({ field: 'timestamp' }, { field: 'y' }, {
+      source: yOdometrySource,
+      line_color: "#DDA0DD",
+      legend_label: 'Odometry Estimate',
       line_width: 2
     });
 
@@ -553,7 +587,7 @@ function initUI() {
 
     accelerationPlot.add_layout(new Bokeh.LinearAxis({ y_range_name: 'acceleration_theta', axis_label: 'accel_θ (radian/sec)' }), 'left');
 
-    addPlot(positionPlot, [positionSource, cameraPositionSource, trajectorySource, radarSampleSource]);
+    addPlot(positionPlot, [positionSource, cameraPositionSource, odometryPositionSource, trajectorySource, radarSampleSource]);
     
     window.lineScanTable = lineScanTable;
     var lineScanTableContainer = addPlot(lineScanTable, [], 'tableTpl');
@@ -788,8 +822,8 @@ function initUI() {
       });
     });
 
-    addPlot(xPositionPlot, [xSource, xCameraSource, xTrajectorySource]);
-    addPlot(yPositionPlot, [ySource, yCameraSource, yTrajectorySource]);
+    addPlot(xPositionPlot, [xSource, xCameraSource, xOdometrySource, xTrajectorySource]);
+    addPlot(yPositionPlot, [ySource, yCameraSource, yOdometrySource, yTrajectorySource]);
     addPlot(velocityPlot, [velocitySource, velocityTrajectorySource]);
 
     addPlot(accelerationPlot, accelerationSource);
@@ -1681,8 +1715,48 @@ function initUI() {
       });
     });
 
-    var currentTrackerPoseArrow, currentCameraPoseArrow;
+    var currentTrackerPoseArrow, currentCameraPoseArrow, currentOdometryPoseArrow;
     onReconnect(() => {
+      remote.on('rover_wheel_odometry_pose', 100, (key, pose) => {
+        odometryPositionSource.data.timestamp.push(pose.timestamp);
+        odometryPositionSource.data.x.push(pose.pos[0]);
+        odometryPositionSource.data.y.push(pose.pos[1]);
+
+        xOdometrySource.data.x.push(pose.pos[0]);
+        xOdometrySource.data.timestamp.push(pose.timestamp);
+
+        yOdometrySource.data.y.push(pose.pos[1]);
+        yOdometrySource.data.timestamp.push(pose.timestamp);
+        
+        if(!currentOdometryPoseArrow) {
+          currentOdometryPoseArrow = new Bokeh.Arrow(
+            { end: new Bokeh.VeeHead({ fill_color: '#ff0000', size: 20, fill_alpha: 0.4 }), 
+                x_start: 0,
+                y_start: 0,
+                x_end: 0,
+                y_end: 0
+          });
+
+          window.currentOdometryPoseArrow = currentOdometryPoseArrow;
+
+          positionPlot.add_layout(currentOdometryPoseArrow);
+
+        } else {
+          currentOdometryPoseArrow.properties.x_start.set_value(pose.pos[0]);
+          currentOdometryPoseArrow.properties.y_start.set_value(pose.pos[1]);
+   
+          var euler = qte(pose.rot);
+ 
+          currentOdometryPoseArrow.properties.x_end.set_value(((Math.cos(euler[2] + Math.PI) * 0.0001) +  pose.pos[1]));
+          currentOdometryPoseArrow.properties.y_end.set_value(((Math.sin(euler[2] + Math.PI) * 0.0001) +  pose.pos[0]));
+
+          currentOdometryPoseArrow.change.emit();
+        }
+
+        console.log('got odometry pose', pose);
+
+      });
+      
       remote.on('rover_camera_pose', 100, (key, pose) => {
         cameraPositionSource.data.timestamp.push(pose.timestamp);
         cameraPositionSource.data.x.push(pose.pos[1]);
@@ -1719,7 +1793,7 @@ function initUI() {
           currentCameraPoseArrow.change.emit();
         }
 
-        console.log('got camera pose', pose);
+        //console.log('got camera pose', pose);
       });
       
       remote.on('rover_pose', 100, (key, pose) => {

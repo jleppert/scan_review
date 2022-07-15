@@ -1478,17 +1478,16 @@ function initUI() {
         });
       },
       home: function() {
-        debugger;
         remote.publish('rover_command', JSON.stringify({ command: 'GOTO_HOME' }));
       },
       stopNow: function() {
         remote.stopNow();
       },
-      recalibrate: function() {
-        remote.recalibrate();
+      setOrigin: function() {
+        remote.setOrigin();
       },
-      initialize: function() {
-
+      calibrate: function() {
+        remote.publish('rover_command', JSON.stringify({ command: 'RUN_CALIBRATION' }));
       }
     };
 
@@ -1507,16 +1506,14 @@ function initUI() {
       var home = paramsGui.add(systemParams, 'home').name('Go To Home Position');
       home.__li.id = 'home';
 
-      var origin = paramsGui.add(systemParams, 'recalibrate').name('Set Origin');
+      var origin = paramsGui.add(systemParams, 'setOrigin').name('Set Origin');
       origin.__li.id = 'origin';
+      
+      var origin = paramsGui.add(systemParams, 'calibrate').name('Run Calibration');
+      origin.__li.id = 'calibrate';
       
       paramsGui.add(systemParams, 'clearPlots').name('Clear Plots');
       
-      var systemGui = paramsGui.addFolder('System');
-      systemGui.add(systemParams, 'initialize').name('Initialize System');
-      
-      systemGui.open();
-  
       var tuning = paramsGui.addFolder('Controls Tuning');
 
       Object.keys(params).forEach(key => {
@@ -1747,8 +1744,8 @@ function initUI() {
    
           var euler = qte(pose.rot);
  
-          currentOdometryPoseArrow.properties.x_end.set_value(((Math.cos(euler[2] + Math.PI) * 0.0001) +  pose.pos[1]));
-          currentOdometryPoseArrow.properties.y_end.set_value(((Math.sin(euler[2] + Math.PI) * 0.0001) +  pose.pos[0]));
+          currentOdometryPoseArrow.properties.x_end.set_value(((Math.cos(euler[2] + Math.PI) * 0.0001) +  pose.pos[0]));
+          currentOdometryPoseArrow.properties.y_end.set_value(((Math.sin(euler[2] + Math.PI) * 0.0001) +  pose.pos[1]));
 
           currentOdometryPoseArrow.change.emit();
         }

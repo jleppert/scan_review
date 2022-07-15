@@ -207,7 +207,7 @@ var sock = shoe(function(stream) {
       }, true);
     },
 
-    recalibrate: function() {
+    setOrigin: function() {
       pm2.connect(err => {
         if(err) return console.log(err.toString());
         
@@ -394,7 +394,7 @@ var sock = shoe(function(stream) {
         var xPos = ((avgStepX / maxX) * pos.x) || 0,
             yPos = ((avgStepY / maxY) * pos.y) || 0;
 
-        var fieldValues = profileRawData[p[1]].map((v, i) => v - avgProfile[i]);
+        var fieldValues = profileRawData[p[1]];
 
         //var fieldValues = profileRawData[p[1]].map((v, i) => v - profileChunks[Math.floor(p[1] / chunkSize)][i]);
 

@@ -587,10 +587,10 @@ function initUI() {
 
     accelerationPlot.add_layout(new Bokeh.LinearAxis({ y_range_name: 'acceleration_theta', axis_label: 'accel_θ (radian/sec)' }), 'left');
 
-    addPlot(positionPlot, [positionSource, cameraPositionSource, odometryPositionSource, trajectorySource, radarSampleSource]);
+    addPlot(positionPlot, 'positionPlot', [positionSource, cameraPositionSource, odometryPositionSource, trajectorySource, radarSampleSource]);
     
     window.lineScanTable = lineScanTable;
-    var lineScanTableContainer = addPlot(lineScanTable, [], 'tableTpl');
+    var lineScanTableContainer = addPlot(lineScanTable, 'lineScanTableContainer', [], 'tableTpl');
     lineScanTableContainer.querySelector('.view-scan-button').addEventListener('click', () => {
      
       //var selectedDataPath = '/home/johnathan/4-bg.hdf5';
@@ -822,13 +822,13 @@ function initUI() {
       });
     });
 
-    addPlot(xPositionPlot, [xSource, xCameraSource, xOdometrySource, xTrajectorySource]);
-    addPlot(yPositionPlot, [ySource, yCameraSource, yOdometrySource, yTrajectorySource]);
-    addPlot(velocityPlot, [velocitySource, velocityTrajectorySource]);
+    addPlot(xPositionPlot, 'xPositionPlot', [xSource, xCameraSource, xOdometrySource, xTrajectorySource]);
+    addPlot(yPositionPlot, 'yPositionPlot', [ySource, yCameraSource, yOdometrySource, yTrajectorySource]);
+    addPlot(velocityPlot, 'velocityPlot', [velocitySource, velocityTrajectorySource]);
 
-    addPlot(accelerationPlot, accelerationSource);
+    addPlot(accelerationPlot, 'accelerationPlot', accelerationSource);
 
-    addPlot(headingPlot, [headingSource, headingTrajectorySource]);
+    addPlot(headingPlot, 'headingPlot', [headingSource, headingTrajectorySource]);
    
     function rad2Deg(rad) {
       return rad * 180 / Math.PI;
@@ -2102,7 +2102,7 @@ function initUI() {
       });
 
     wheelPlots.forEach((wheelPlot, i) => {
-      addPlot(wheelPlot[0], wheelPlot[1]);
+      addPlot(wheelPlot[0],'wheelPlot', wheelPlot[1]);
     });
 
     onReconnect(() => {
@@ -2359,7 +2359,14 @@ var addedPlots = [];
 
 window.addedPlots = addedPlots;
 var container = document.querySelector('main > div.container');
-function addPlot(plot, source = [], templateName = 'plotTpl') {
+function addPlot(plot, name, source = [], templateName = 'plotTpl') {
+
+  //name = Object.keys(plot)[0]
+
+  console.log('Name ' + name)
+
+  /*id = name, for each plot*/
+
   var d = document.createElement('div');
 
   console.log(templateName);

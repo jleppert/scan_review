@@ -41,6 +41,7 @@ var styles = [
   path.join(__dirname, 'node_modules', 'bootstrap', 'dist', 'css', 'bootstrap.css'),
   path.join(__dirname, 'node_modules', 'leaflet', 'dist', 'leaflet.css'),
   path.join(__dirname, 'node_modules', 'leaflet-draw', 'dist', 'leaflet.draw.css'),
+  path.join(__dirname, 'static','mobileStyle.css')
 ];
 
 app.use('/style.css', (req, res) => {

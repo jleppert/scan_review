@@ -129,8 +129,12 @@
         z-index: 99999;
       }
 
+      .navbar-text.alt{
+        display: none;
+      }
+
   </style>
-  
+  <link rel="stylesheet" href="mobileStyle.css">
   <body class="d-flex flex-column h-100">
     
     <header>
@@ -139,11 +143,15 @@
         <div class="container-fluid">
           <a class="navbar-brand" href="#">
             <img class="logo-icon" src="logo.png"/>
-            <div>Scan Review</div>
+            </br>
+            <div class="div-special">Scan Review</div>
           </a>
           <span class="navbar-text">
             Developer View
-          </span> 
+          </span>
+          <span class ="navbar-text alt">
+            Scan Review
+          </span>
         </div>
       </nav>
     </header>

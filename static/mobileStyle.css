@@ -1,15 +1,43 @@
 @media (max-width: 768px){
     
-    .dg.ac{
-        top:74px !important;
+    .navbar-brand{
+        margin:auto !important;
     }
     
-    .dg.main.a{     /*doesn't seem to work currently */
+    .logo-icon{
+        width:90% !important;
+    }
+
+    .div-special{
+        display:none;
+        position:relative !important;
+    }
+
+    .navbar-text{
+        display:none !important;
+    }
+
+    .navbar-text.alt{
+        display:block !important;
+        font-weight: bold;
+        font-size: 1.25rem;
+        color: #fff;
+        margin: auto;
+    }
+
+    .dg.ac.controls{
+        top:114px !important;
+        position: absolute;
+        width: 100%;
+    }
+    
+    .controls .dg.main.a{     /*doesn't seem to work currently */
         float:none !important; 
         margin-right:none !important;
         width:100% !important;
         position:absolute !important;
         
+        overflow-x: hidden;
         
     }
 
@@ -18,7 +46,7 @@
     }
 
     .container.main-container{
-        padding-top: 50em !important;
+         padding-top: 24em !important;
     }
 
     

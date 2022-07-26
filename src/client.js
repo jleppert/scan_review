@@ -193,15 +193,36 @@ function initUI() {
     var xRange = new Bokeh.Range1d({ start: dim * -1, end: dim });
     var yRange = new Bokeh.Range1d({ start: dim * -1, end: dim });
 
-    var positionPlot = new Bokeh.Plot({
-      title: 'Estimated Position Path & Trajectory Plan',
-      x_range: xRange,
-      y_range: yRange,
-      width: initialWidth,
-      height: 500,
-      background_fill_color: '#F2F2F7',
-      output_backend: 'webgl'
-    });
+    var positionPlot;
+
+    if(mobileAndTabletCheck()) {
+      positionPlot = new Bokeh.Plot({
+        title: 'Scan Progress',
+        x_range: xRange,
+        y_range: yRange,
+        width: 375,
+        height: 280,
+        background_fill_color: '#F2F2F7',
+        output_backend: 'webgl'
+      });
+    } else {
+      positionPlot = new Bokeh.Plot({
+        title: 'Estimated Position Path & Trajectory Plan',
+        x_range: xRange,
+        y_range: yRange,
+        width: initialWidth,
+        height: 250,
+        background_fill_color: '#F2F2F7',
+        output_backend: 'webgl'
+      });
+
+      tools.forEach(t => {
+        var tool = new Bokeh[`${toPascal(t)}Tool`]();
+        positionPlot.add_tools(tool);
+      });
+    }
+
+    window.positionPlot = positionPlot;
 
     var lineScanSource = new Bokeh.ColumnDataSource({data: {
       timestamp: [],
@@ -241,10 +262,7 @@ function initUI() {
         }
     });
 
-    tools.forEach(t => {
-      var tool = new Bokeh[`${toPascal(t)}Tool`]();
-      positionPlot.add_tools(tool);
-    });
+    
 
     var xPositionPlot = new Bokeh.Plotting.figure({
       title: 'X Position',
@@ -397,22 +415,26 @@ function initUI() {
     });
 
     var xyLineGlyphRenderer = positionPlot.add_glyph(xyLine, positionSource);
-    var xyLineCameraGlyphRenderer = positionPlot.add_glyph(xyLineCamera, cameraPositionSource);
-    var xyLineOdometryGlyphRenderer = positionPlot.add_glyph(xyLineOdometry, odometryPositionSource);
     var xyLineTrajectoryGlyphRenderer = positionPlot.add_glyph(xyLineTrajectory, trajectorySource);
     var radarSamplePointGlyphRenderer = positionPlot.add_glyph(radarSamplePoint, radarSampleSource);
 
-    var positionLegend = new Bokeh.Legend({
-      items: [
-        new Bokeh.LegendItem({ label: { value: 'Tracker Estimate' }, renderers: [xyLineGlyphRenderer] }),
-        new Bokeh.LegendItem({ label: { value: 'Camera Estimate' }, renderers: [xyLineCameraGlyphRenderer] }),
-        new Bokeh.LegendItem({ label: { value: 'Odometry Estimate' }, renderers: [xyLineOdometryGlyphRenderer] }),
-        new Bokeh.LegendItem({ label: { value: 'Trajectory' }, renderers: [xyLineTrajectoryGlyphRenderer] }),
-        new Bokeh.LegendItem({ label: { value: 'Radar Sample Point' }, renderers: [radarSamplePointGlyphRenderer] })
-      ]
-    });
+    if(!mobileAndTabletCheck()) {
+      var xyLineCameraGlyphRenderer = positionPlot.add_glyph(xyLineCamera, cameraPositionSource);
+      var xyLineOdometryGlyphRenderer = positionPlot.add_glyph(xyLineOdometry, odometryPositionSource);
+      
 
-    positionPlot.add_layout(positionLegend);
+      var positionLegend = new Bokeh.Legend({
+        items: [
+          new Bokeh.LegendItem({ label: { value: 'Tracker Estimate' }, renderers: [xyLineGlyphRenderer] }),
+          new Bokeh.LegendItem({ label: { value: 'Camera Estimate' }, renderers: [xyLineCameraGlyphRenderer] }),
+          new Bokeh.LegendItem({ label: { value: 'Odometry Estimate' }, renderers: [xyLineOdometryGlyphRenderer] }),
+          new Bokeh.LegendItem({ label: { value: 'Trajectory' }, renderers: [xyLineTrajectoryGlyphRenderer] }),
+          new Bokeh.LegendItem({ label: { value: 'Radar Sample Point' }, renderers: [radarSamplePointGlyphRenderer] })
+        ]
+      });
+
+      positionPlot.add_layout(positionLegend);
+    }
 
     xPositionPlot.line({ field: 'timestamp' }, { field: 'x' }, {
       source: xSource,
@@ -649,7 +671,7 @@ function initUI() {
         imageData.data.set(buf8)
         ctx.putImageData(imageData, 0, 0);
 
-        var initialWidth = window.innerWidth * 0.75;
+        var initialWidth = 300;
 
         var renderCanvas = document.createElement('canvas');
         renderCanvas.width = initialWidth;
@@ -1500,6 +1522,8 @@ function initUI() {
       paramsGui = new dat.gui.GUI({ width: 400 });
       paramsGui.domElement.parentElement.style.top = '110px';
 
+      paramsGui.domElement.parentElement.classList.add('controls');
+
       
       var estop = paramsGui.add(systemParams, 'stopNow').name('Emergency Stop');
       estop.__li.id = 'stopNow';
@@ -1515,26 +1539,28 @@ function initUI() {
       
       paramsGui.add(systemParams, 'clearPlots').name('Clear Plots');
       
-      var tuning = paramsGui.addFolder('Controls Tuning');
+      if(!mobileAndTabletCheck()) {
+        var tuning = paramsGui.addFolder('Controls Tuning');
 
-      Object.keys(params).forEach(key => {
-        if(key === 'timestamp') return;
+        Object.keys(params).forEach(key => {
+          if(key === 'timestamp') return;
 
-        var c = paramsConstraints[key];
-        
-        params[key] = params[key] || 0;
+          var c = paramsConstraints[key];
+          
+          params[key] = params[key] || 0;
 
-        tuning.add(params, key).min(c[0]).max(c[1]).step(c[2])
-          .onFinishChange(() => {
-            console.log('value changed!!');
+          tuning.add(params, key).min(c[0]).max(c[1]).step(c[2])
+            .onFinishChange(() => {
+              console.log('value changed!!');
 
-            remote.setParameters(params, 'rover_parameters', (setParams) => {
-              console.log('set new params', setParams);
+              remote.setParameters(params, 'rover_parameters', (setParams) => {
+                console.log('set new params', setParams);
+              });
             });
-          });
-      });
+        });
 
-      //tuning.open();
+        //tuning.open();
+      }
 
       remote.getRadarParameters(radarParams => {
         var radar = paramsGui.addFolder('Radar Parameters');
@@ -1563,7 +1589,7 @@ function initUI() {
 
           }}, 'restart').name('Restart Radar Data Acquisition Process');
 
-        radar.open();
+        if(!mobileAndTabletCheck()) radar.open();
       });
 
       initScanPatternUI();
@@ -1575,7 +1601,9 @@ function initUI() {
         if(scanPlanning) paramsGui.removeFolder(scanPlanning);
 
         scanPlanning = paramsGui.addFolder('Scan Pattern');
-        scanPlanning.add(scanPlanningParams, 'createNewPattern').name('Create New Pattern');
+        if(!mobileAndTabletCheck()) {
+          scanPlanning.add(scanPlanningParams, 'createNewPattern').name('Create New Pattern');
+        }
         
         var selectedPatternName;
         if(patterns) {
@@ -1630,17 +1658,19 @@ function initUI() {
               maxAcceleration: selectedPattern.trajectory.maxAcceleration || roverParams.maxAcceleration
             };
             
-            patternMaxVelocity = scanPlanning.add(patternParams, 'maxVelocity').min(paramsConstraints.maxVelocity[0]).max(paramsConstraints.maxVelocity[1]).step(paramsConstraints.maxVelocity[2]).onFinishChange(() => {
-              selectedPattern.trajectory.maxVelocity = patternParams.maxVelocity;
-              remote.set('rover_scan_patterns', JSON.stringify(patterns), () => { });
-            });
-            patternMaxAcceleration = scanPlanning.add(patternParams, 'maxAcceleration').min(paramsConstraints.maxAcceleration[0]).max(paramsConstraints.maxAcceleration[1]).step(paramsConstraints.maxAcceleration[2]).onFinishChange(() => {
-              selectedPattern.trajectory.maxAcceleration = patternParams.maxAcceleration;
-              remote.set('rover_scan_patterns', JSON.stringify(patterns), () => { });
-            });
+            if(!mobileAndTabletCheck()) {
+              patternMaxVelocity = scanPlanning.add(patternParams, 'maxVelocity').min(paramsConstraints.maxVelocity[0]).max(paramsConstraints.maxVelocity[1]).step(paramsConstraints.maxVelocity[2]).onFinishChange(() => {
+                selectedPattern.trajectory.maxVelocity = patternParams.maxVelocity;
+                remote.set('rover_scan_patterns', JSON.stringify(patterns), () => { });
+              });
+              patternMaxAcceleration = scanPlanning.add(patternParams, 'maxAcceleration').min(paramsConstraints.maxAcceleration[0]).max(paramsConstraints.maxAcceleration[1]).step(paramsConstraints.maxAcceleration[2]).onFinishChange(() => {
+                selectedPattern.trajectory.maxAcceleration = patternParams.maxAcceleration;
+                remote.set('rover_scan_patterns', JSON.stringify(patterns), () => { });
+              });
 
-            createOrEdit = scanPlanning.add(scanPlanningParams, 'createOrEdit').name('Edit Pattern');
-            generateTrajectory = scanPlanning.add(scanPlanningParams, 'generateTrajectory').name('Generate Trajectory Path');
+              createOrEdit = scanPlanning.add(scanPlanningParams, 'createOrEdit').name('Edit Pattern');
+              generateTrajectory = scanPlanning.add(scanPlanningParams, 'generateTrajectory').name('Generate Trajectory Path');
+            }
             runPattern = scanPlanning.add(scanPlanningParams, 'run').name('Run Pattern');
           }
 
@@ -1737,7 +1767,7 @@ function initUI() {
 
           window.currentOdometryPoseArrow = currentOdometryPoseArrow;
 
-          positionPlot.add_layout(currentOdometryPoseArrow);
+          if(!mobileAndTabletCheck()) positionPlot.add_layout(currentOdometryPoseArrow);
 
         } else {
           currentOdometryPoseArrow.properties.x_start.set_value(pose.pos[0]);
@@ -1751,7 +1781,7 @@ function initUI() {
           currentOdometryPoseArrow.change.emit();
         }
 
-        console.log('got odometry pose', pose);
+        //console.log('got odometry pose', pose);
 
       });
       
@@ -1777,7 +1807,7 @@ function initUI() {
 
           window.currentCameraPoseArrow = currentCameraPoseArrow;
 
-          positionPlot.add_layout(currentCameraPoseArrow);
+          if(!mobileAndTabletCheck()) positionPlot.add_layout(currentCameraPoseArrow);
 
         } else {
           currentCameraPoseArrow.properties.x_start.set_value(pose.pos[1]);
@@ -2355,17 +2385,20 @@ frontLeftMotorOutput,
   });
 }
 
+function mobileAndTabletCheck() {
+  let check = false;
+  (function(a){if(/(android|bb\d+|meego).+mobile|avantgo|bada\/|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|iris|kindle|lge |maemo|midp|mmp|mobile.+firefox|netfront|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)\/|plucker|pocket|psp|series(4|6)0|symbian|treo|up\.(browser|link)|vodafone|wap|windows ce|xda|xiino|android|ipad|playbook|silk/i.test(a)||/1207|6310|6590|3gso|4thp|50[1-6]i|770s|802s|a wa|abac|ac(er|oo|s\-)|ai(ko|rn)|al(av|ca|co)|amoi|an(ex|ny|yw)|aptu|ar(ch|go)|as(te|us)|attw|au(di|\-m|r |s )|avan|be(ck|ll|nq)|bi(lb|rd)|bl(ac|az)|br(e|v)w|bumb|bw\-(n|u)|c55\/|capi|ccwa|cdm\-|cell|chtm|cldc|cmd\-|co(mp|nd)|craw|da(it|ll|ng)|dbte|dc\-s|devi|dica|dmob|do(c|p)o|ds(12|\-d)|el(49|ai)|em(l2|ul)|er(ic|k0)|esl8|ez([4-7]0|os|wa|ze)|fetc|fly(\-|_)|g1 u|g560|gene|gf\-5|g\-mo|go(\.w|od)|gr(ad|un)|haie|hcit|hd\-(m|p|t)|hei\-|hi(pt|ta)|hp( i|ip)|hs\-c|ht(c(\-| |_|a|g|p|s|t)|tp)|hu(aw|tc)|i\-(20|go|ma)|i230|iac( |\-|\/)|ibro|idea|ig01|ikom|im1k|inno|ipaq|iris|ja(t|v)a|jbro|jemu|jigs|kddi|keji|kgt( |\/)|klon|kpt |kwc\-|kyo(c|k)|le(no|xi)|lg( g|\/(k|l|u)|50|54|\-[a-w])|libw|lynx|m1\-w|m3ga|m50\/|ma(te|ui|xo)|mc(01|21|ca)|m\-cr|me(rc|ri)|mi(o8|oa|ts)|mmef|mo(01|02|bi|de|do|t(\-| |o|v)|zz)|mt(50|p1|v )|mwbp|mywa|n10[0-2]|n20[2-3]|n30(0|2)|n50(0|2|5)|n7(0(0|1)|10)|ne((c|m)\-|on|tf|wf|wg|wt)|nok(6|i)|nzph|o2im|op(ti|wv)|oran|owg1|p800|pan(a|d|t)|pdxg|pg(13|\-([1-8]|c))|phil|pire|pl(ay|uc)|pn\-2|po(ck|rt|se)|prox|psio|pt\-g|qa\-a|qc(07|12|21|32|60|\-[2-7]|i\-)|qtek|r380|r600|raks|rim9|ro(ve|zo)|s55\/|sa(ge|ma|mm|ms|ny|va)|sc(01|h\-|oo|p\-)|sdk\/|se(c(\-|0|1)|47|mc|nd|ri)|sgh\-|shar|sie(\-|m)|sk\-0|sl(45|id)|sm(al|ar|b3|it|t5)|so(ft|ny)|sp(01|h\-|v\-|v )|sy(01|mb)|t2(18|50)|t6(00|10|18)|ta(gt|lk)|tcl\-|tdg\-|tel(i|m)|tim\-|t\-mo|to(pl|sh)|ts(70|m\-|m3|m5)|tx\-9|up(\.b|g1|si)|utst|v400|v750|veri|vi(rg|te)|vk(40|5[0-3]|\-v)|vm40|voda|vulc|vx(52|53|60|61|70|80|81|83|85|98)|w3c(\-| )|webc|whit|wi(g |nc|nw)|wmlb|wonu|x700|yas\-|your|zeto|zte\-/i.test(a.substr(0,4))) check = true;})(navigator.userAgent||navigator.vendor||window.opera);
+  console.log('This is a mobile device')
+  return check;
+};
+
 var addedPlots = [];
 
 window.addedPlots = addedPlots;
 var container = document.querySelector('main > div.container');
 function addPlot(plot, name, source = [], templateName = 'plotTpl') {
 
-  //name = Object.keys(plot)[0]
-
-  console.log('Name ' + name)
-
-  /*id = name, for each plot*/
+  console.log('Name ' + name);
 
   var d = document.createElement('div');
 
@@ -2386,8 +2419,19 @@ function addPlot(plot, name, source = [], templateName = 'plotTpl') {
 
   addedPlots.push([plotEl, source]);
 
+  if(mobileAndTabletCheck() == true){
+    if(name != 'positionPlot'){ //do this if mobile
+      plot.visible = false;
+    } else {
+      plot.tools = [];
+    }
+  }
+
+  
+
   return el;
   //plot.frame_width = rect.width;
 
   //plot.properties.height.change.emit();
 }
+

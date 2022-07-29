@@ -857,19 +857,21 @@ function initUI() {
       maxXPosition: [0.1, 2, 0.01, 'meters'],
       maxYPosition: [0.1, 2, 0.01, 'meters'],
       linearTolerance: [0.001, 0.1, 0.001, 'meters'],
-      angularTolerance: [(2.0 * Math.PI / 360), (2.0 * Math.PI / 90), (2.0 * Math.PI / 360),'radians'],
+      angularTolerance: [(2.0 * Math.PI / 360), (2.0 * Math.PI / 90), (2.0 * Math.PI / 360), 'radians'],
       poseToleranceX: [0.001, 0.1, 0.001, 'meters'],
       poseToleranceY: [0.001, 0.1, 0.001, 'meters'],
       poseToleranceTheta: [0.009, 0.26, 0.01, 'radians'],
-      xControllerP: [0.1, 10, 0.001],
-      xControllerI: [0, 5, 0.001],
-      xControllerD: [0, 5, 0.001],
-      yControllerP: [0.1, 10, 0.001],
-      yControllerI: [0, 5, 0.001],
-      yControllerD: [0, 5, 0.001],
-      thetaControllerP: [0.1, 10, 0.001],
-      thetaControllerI: [0, 5, 0.001],
-      thetaControllerD: [0, 5, 0.001],
+      xControllerP: [0.1, 10, 0.001, '', 'Mecanum'],
+      xControllerI: [0, 5, 0.001, '', 'Mecanum'],
+      xControllerD: [0, 5, 0.001, '', 'Mecanum'],
+      yControllerP: [0.1, 10, 0.001, '', 'Mecanum'],
+      yControllerI: [0, 5, 0.001, '', 'Mecanum'],
+      yControllerD: [0, 5, 0.001, '', 'Mecanum'],
+      thetaControllerP: [0.1, 10, 0.001, '', 'Mecanum'],
+      thetaControllerI: [0, 5, 0.001, '', 'Mecanum'],
+      thetaControllerD: [0, 5, 0.001, '', 'Mecanum'],
+      ramseteControllerB: [0, 5, 0.001, '', 'Differential'],
+      ramseteControllerZeta: [0, 5, 0.001, '', 'Differential'],
       frontLeftWheelControllerD: [0, 10, 0.001],
       frontLeftWheelControllerI: [0, 10, 0.001],
       frontLeftWheelControllerP: [0, 10, 0.001],
@@ -1516,14 +1518,19 @@ function initUI() {
       
       var tuning = paramsGui.addFolder('Controls Tuning');
 
+      var paramsGroups = {};
       Object.keys(params).forEach(key => {
         if(key === 'timestamp') return;
 
         var c = paramsConstraints[key];
         
         params[key] = params[key] || 0;
+        
+        var group = c[4] ? c[4] : 'General';
 
-        tuning.add(params, key).min(c[0]).max(c[1]).step(c[2])
+        var folderGroup = paramsGroups[group] ? paramsGroups[group] : tuning.addFolder(group);
+        paramsGroups[group] = folderGroup;
+        folderGroup.add(params, key).min(c[0]).max(c[1]).step(c[2])
           .onFinishChange(() => {
             console.log('value changed!!');
 
@@ -1750,7 +1757,7 @@ function initUI() {
           currentOdometryPoseArrow.change.emit();
         }
 
-        console.log('got odometry pose', pose);
+        //console.log('got odometry pose', pose);
 
       });
       

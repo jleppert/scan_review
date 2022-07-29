@@ -59,6 +59,7 @@ function onReconnect(cb) {
   if(remote.isConnected) cb();
 }
 
+var roverStartupTimestamp;
 var connectionManager = reconnect((stream) => {
   var d = dnode({
     data: function(key, value) {
@@ -72,8 +73,12 @@ var connectionManager = reconnect((stream) => {
     remote = r;
     
     remote.isConnected = true;
-    reconnectCallbacks.forEach(cb => cb());
-    if(!hasInitUI) initUI();
+    remote.get('rover_startup_timestamp', timestamp => {
+      roverStartupTimestamp = parseInt(timestamp);
+      debugger;
+      reconnectCallbacks.forEach(cb => cb());
+      if(!hasInitUI) initUI();
+    });
 
     remote.getClientTimeout(clientTimeout => {
       debugger;
@@ -211,7 +216,7 @@ function initUI() {
         x_range: xRange,
         y_range: yRange,
         width: initialWidth,
-        height: 250,
+        height: 400,
         background_fill_color: '#F2F2F7',
         output_backend: 'webgl'
       });
@@ -1787,7 +1792,7 @@ function initUI() {
           currentOdometryPoseArrow.change.emit();
         }
 
-        //console.log('got odometry pose', pose);
+        console.log('got odometry pose', pose);
 
       });
       

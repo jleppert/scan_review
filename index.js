@@ -154,7 +154,7 @@ var sock = shoe(function(stream) {
           ))));
 
         } catch(e) {
-          console.log('Error getting key', key, e.toString());
+          //console.log('Error getting key', key, e.toString());
         }
       }, rateInMs);
 

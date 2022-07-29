@@ -43,6 +43,25 @@
       margin-top: 56px;
      }
 
+     #stopNow {
+      background-color: darkred;
+      height: 4em;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      text-transform: uppercase;
+      font-weight: bold;
+     }
+
+     #home {
+      background-color: darkolivegreen;
+     }
+
+     #origin {
+      background-color: royalblue;
+     }
+
      li.cr.function { text-align: center; }
      li.cr.function span.property-name { width: 100%; }
      div.c select { width: 100% }
@@ -110,8 +129,12 @@
         z-index: 99999;
       }
 
+      .navbar-text.alt{
+        display: none;
+      }
+
   </style>
-  
+  <link rel="stylesheet" href="mobileStyle.css">
   <body class="d-flex flex-column h-100">
     
     <header>
@@ -120,16 +143,20 @@
         <div class="container-fluid">
           <a class="navbar-brand" href="#">
             <img class="logo-icon" src="logo.png"/>
-            <div>Scan Review</div>
+            </br>
+            <div class="div-special">Scan Review</div>
           </a>
           <span class="navbar-text">
             Developer View
-          </span> 
+          </span>
+          <span class ="navbar-text alt">
+            Scan Review
+          </span>
         </div>
       </nav>
     </header>
     
-    <div class="heading-container">
+    <div class="heading-container"> <!--rover compass-->
       <div id="heading-number">
         <div id="heading-number-degree"></div>
         <div id="heading-number-radian"></div>
@@ -139,7 +166,7 @@
     </div>
 
     <main class="flex-shrink-0">
-      <div class="container"></div>
+      <div class="container main-container"></div> <!--empty div-->
     </main>
 
     <footer class="footer mt-auto py-3 bg-light">

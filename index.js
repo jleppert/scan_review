@@ -16,6 +16,7 @@ var fs            = require('fs'),
     babelify      = require('babelify'),
     babelPreset   = require('@babel/preset-env'),
     browserify    = require('browserify-middleware'),
+    Tail          = require('tail').Tail,
     pm2           = require('pm2');
 
 var app = express();
@@ -112,6 +113,7 @@ function toArrayBuffer(buf) {
 
 BigInt.prototype.toJSON = function() { return this.toString() };
 
+var surviveLogTail;
 var sock = shoe(function(stream) {
   var remote;
 
@@ -230,6 +232,21 @@ var sock = shoe(function(stream) {
               baseData.toString().replace(basePoseRegex, resetPose)
               .replace(positionSetRegex, resetPositionSet)
           );
+
+          if(surviveLogTail) {
+            surviveLogTail.unwatch();
+            surviveLogTail.watch();
+          } else {
+            surviveLogTail = new Tail('/var/log/pm2/logs/survive-redis-driver-error.log');
+          
+            surviveLogTail.on('line', line => {
+              if(line.indexOf('reference lighthouse') !== -1) {
+                redisClient.publish('SET_ORIGIN_SUCCESS', line);
+                console.log('set origin successfully completed');
+                surviveLogTail.unwatch();
+              }
+            });
+          }
 
           pm2.start({
             name: 'survive_redis_driver'

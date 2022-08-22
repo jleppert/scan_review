@@ -49,6 +49,7 @@
     "shoe": "0.0.15",
     "smoothstep": "^1.0.1",
     "stats.js": "^0.17.0",
+    "tail": "^2.2.4",
     "three": "^0.136.0",
     "three-stl-loader": "^1.0.6",
     "toastify-js": "^1.11.2",

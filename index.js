@@ -235,18 +235,18 @@ var sock = shoe(function(stream) {
 
           if(surviveLogTail) {
             surviveLogTail.unwatch();
-            surviveLogTail.watch();
-          } else {
-            surviveLogTail = new Tail('/var/log/pm2/logs/survive-redis-driver-error.log');
-          
-            surviveLogTail.on('line', line => {
-              if(line.indexOf('reference lighthouse') !== -1) {
-                redisClient.publish('SET_ORIGIN_SUCCESS', line);
-                console.log('set origin successfully completed');
-                surviveLogTail.unwatch();
-              }
-            });
           }
+
+          surviveLogTail = new Tail('/var/log/pm2/logs/survive-redis-driver-error.log');
+        
+          surviveLogTail.on('line', line => {
+            console.log(line);
+            if(line.indexOf('reference lighthouse') !== -1) {
+              redisClient.publish('rover_command', JSON.stringify({ command: 'SET_ORIGIN' }));
+              console.log('set origin successfully completed');
+              surviveLogTail.unwatch();
+            }
+          });
 
           pm2.start({
             name: 'survive_redis_driver'

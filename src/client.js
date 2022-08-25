@@ -69,19 +69,19 @@ var connectionManager = reconnect((stream) => {
 
   var pingIntervalId;
   d.on('remote', function(r) {
-    debugger;
+    console.log('new remote connection');
+
     remote = r;
     
     remote.isConnected = true;
     remote.get('rover_startup_timestamp', timestamp => {
       roverStartupTimestamp = parseInt(timestamp);
-      debugger;
       reconnectCallbacks.forEach(cb => cb());
       if(!hasInitUI) initUI();
     });
 
     remote.getClientTimeout(clientTimeout => {
-      debugger;
+      console.log('client timeout set to', clientTimeout);
       if(pingIntervalId) clearInterval(pingIntervalId);
       pingIntervalId = setInterval(() => {
         remote.ping();
@@ -145,6 +145,8 @@ const toPascal = (s) => {
 };
 
 var currentTrackerConfig, hasInitUI = false;
+
+var useAdjustedPose = true;
 function initUI() {
   console.log('init ui');
   hasInitUI = true;
@@ -644,8 +646,8 @@ function initUI() {
         var buf8 = new Uint8ClampedArray(buf);
         var buf32 = new Uint32Array(buf);
 
-
-          var palette =   ['#000000',
+        var palette =   
+        ['#000000',
           '#2b2b2b',
           '#555555',
           '#808080',
@@ -1346,10 +1348,10 @@ function initUI() {
             });
 
             //patternSamplePoints.push(lineSegments);
-            patternPoints = patternPoints.concat(points);
+            patternPoints = patternPoints.concat(lineSegments);
           });
 
-          scanLayer.setLatLngs(patternPoints.map(p => [p[1], p[0]]));
+          scanLayer.setLatLngs(patternPoints.flat().map(p  => [p[1], p[0]]));
 
           if(type === 'polygon') {
             // TODO: joins, hole support
@@ -1364,12 +1366,19 @@ function initUI() {
             }));
           }
 
-          pattern.trajectory.waypoints = scanLayer.getLatLngs().flat().map(l => { 
-            return {
-              rotation: { radians: 0 },
-              translation: { x: l.lng, y: l.lat }
-            };
-          });
+          debugger;
+
+          pattern.trajectory.waypoints = patternPoints.map((l, i) => { 
+            
+
+            return l.map(p => {
+              
+              return { 
+                rotation: { radians: (i % 2 === 0 ? deg2Rad(90) : deg2Rad(90) * -1) },
+                translation: { x: p[0], y: p[1] }
+              }
+            });
+          }).flat();
 
           pattern.trajectory.samplePoints.push(patternSamplePoints);
 
@@ -1792,7 +1801,7 @@ function initUI() {
           currentOdometryPoseArrow.change.emit();
         }
 
-        console.log('got odometry pose', pose);
+        //console.log('got odometry pose', pose);
 
       });
       
@@ -1836,6 +1845,7 @@ function initUI() {
       });
       
       remote.on('rover_pose', 100, (key, pose) => {
+        if(useAdjustedPose) return;
         positionSource.data.timestamp.push(pose.timestamp);
         positionSource.data.x.push(pose.pos[0] * flip);
         positionSource.data.y.push(pose.pos[1] * flip);
@@ -2309,6 +2319,62 @@ frontLeftMotorOutput,
       remote.subscribe('rover_control_state', (key, message) => {
         //console.log('rover_control_state', message);
         lastTimestamp = message.timestamp;
+
+        var pose = message.localizedPose;
+
+        console.log('pose!', pose);
+        positionSource.data.timestamp.push(parseInt(pose.timestamp));
+        positionSource.data.x.push(pose.pos[0]);
+        positionSource.data.y.push(pose.pos[1]);
+
+        xSource.data.x.push(pose.pos[0]);
+        xSource.data.timestamp.push(parseInt(pose.timestamp));
+
+        ySource.data.y.push(pose.pos[1]);
+        ySource.data.timestamp.push(parseInt(pose.timestamp));
+
+        //var euler = qte(pose.rot);
+        var euler = [0, 0, pose.radians];
+        headingSource.data.theta.push(euler[2]);
+        headingSource.data.timestamp.push(parseInt(pose.timestamp));
+
+        if(!currentTrackerPoseArrow) {
+          currentTrackerPoseArrow = new Bokeh.Arrow(
+            { end: new Bokeh.VeeHead({ fill_color: '#f9e816', size: 20, fill_alpha: 0.4 }), 
+                x_start: 0,
+                y_start: 0,
+                x_end: 0,
+                y_end: 0
+          });
+
+          window.currentTrackerPoseArrow = currentTrackerPoseArrow;
+
+          positionPlot.add_layout(currentTrackerPoseArrow);
+
+        } else {
+          currentTrackerPoseArrow.properties.x_start.set_value(pose.pos[0]);
+          currentTrackerPoseArrow.properties.y_start.set_value(pose.pos[1]);
+    
+          currentTrackerPoseArrow.properties.x_end.set_value(((Math.cos(euler[2] + Math.PI) * 0.0001) +  pose.pos[0]));
+          currentTrackerPoseArrow.properties.y_end.set_value(((Math.sin(euler[2] + Math.PI) * 0.0001) +  pose.pos[1]));
+
+          currentTrackerPoseArrow.change.emit();
+        }
+
+        headingNumberDegree.innerText = rad2Deg(convertAngle(euler[2])).toFixed(2) + '°';
+        headingNumberRadian.innerText = euler[2].toFixed(2) + 'r';
+
+        if(!roverMesh) return;
+        roverMesh.rotation.z = euler[2];
+
+        if(currentRoverPoseMapMarker) {
+          currentRoverPoseMapMarker.setLatLng([pose.pos[1] * flip, pose.pos[0] * flip]);
+          currentRoverPoseMapMarker.setRotationAngle(rad2Deg((Math.PI / 2) - euler[2]));
+        }
+
+
+
+
         backRightWheelVoltage.data.timestamp.push(message.timestamp);
         frontRightWheelVoltage.data.timestamp.push(message.timestamp);
         frontLeftWheelVoltage.data.timestamp.push(message.timestamp);
